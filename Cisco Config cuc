@@ -1,0 +1,211 @@
+**Cisco IOS Router & Switch Cheat Sheet (2025/2026)**
+
+Ez egy gyakorlati, részletes összefoglaló a leggyakrabban használt Cisco IOS parancsokról routerekhez és switchekhez (Catalyst, ISR stb.).
+
+### 1. Alap CLI Navigáció és Gyorsbillentyűk
+| Billentyűkombináció       | Leírás                              |
+|---------------------------|-------------------------------------|
+| `Ctrl + Z`                | Kilép config mode-ból, menti a változást |
+| `Ctrl + C`                | Megszakít aktuális parancsot        |
+| `Ctrl + Shift + 6` majd `X` | Kilép current session-ből (pl. telnet/SSH) |
+| `Tab`                     | Parancs kiegészítés                 |
+| `Ctrl + A`                | Sor elejére                         |
+| `Ctrl + E`                | Sor végére                          |
+| `Ctrl + U`                | Sor törlése                         |
+| `Up/Down Arrow`           | Parancs előzmények                  |
+| `?`                       | Súgó (bármely ponton)               |
+
+**Módok**:
+- `Router>` → User EXEC
+- `Router#` → Privileged EXEC (`enable`)
+- `Router(config)#` → Global Configuration (`configure terminal` vagy `conf t`)
+
+### 2. Alap Konfiguráció (Router & Switch)
+```bash
+enable
+configure terminal
+
+hostname R1
+enable secret StrongPass123!
+line console 0
+ logging synchronous
+ exec-timeout 0 0
+ exit
+
+line vty 0 15
+ password TelnetPass
+ login
+ transport input ssh
+ exit
+
+username admin privilege 15 secret AdminPass123!
+service password-encryption
+no ip domain-lookup
+ip domain-name example.com
+crypto key generate rsa modulus 2048
+```
+
+**Mentés**:
+- `copy running-config startup-config` (`wr` vagy `copy run start`)
+- `show running-config` (`sh run`)
+- `show startup-config`
+
+### 3. Interface Konfiguráció
+```bash
+interface GigabitEthernet0/0     # vagy Fa0/1, Te1/0/1 stb.
+ description WAN Link to ISP
+ ip address 192.168.1.1 255.255.255.0
+ no shutdown
+ speed 1000
+ duplex full
+ exit
+```
+
+**Switch port**:
+```bash
+interface Gi0/1
+ switchport mode access
+ switchport access vlan 10
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+```
+
+**Trunk port**:
+```bash
+interface Gi0/24
+ switchport mode trunk
+ switchport trunk allowed vlan 10,20,30
+ switchport trunk native vlan 99
+```
+
+### 4. Fontos „Show” Parancsok (Leggyakrabban használtak)
+
+**Általános**:
+- `show version` — IOS verzió, uptime, hardware
+- `show running-config` — Aktuális config
+- `show startup-config`
+- `show ip interface brief` (`sh ip int br`) — **LEGHASZNÁLTABB**
+- `show interfaces` — Részletes interface stat
+- `show interface status` — Port status tábla
+- `show logging` — Logok
+- `show tech-support` — Minden infó (supportnak)
+
+**Switch specifikus**:
+- `show vlan brief`
+- `show mac address-table` (`sh mac`)
+- `show interfaces trunk`
+- `show interfaces switchport`
+- `show spanning-tree` (`sh span`)
+- `show port-security`
+
+**Router specifikus**:
+- `show ip route` (`sh ip ro`)
+- `show ip protocols`
+- `show ip ospf neighbor`
+- `show ip eigrp neighbors`
+- `show bgp summary`
+
+**IP / Connectivity**:
+- `show ip arp`
+- `ping 8.8.8.8 source Gi0/0`
+- `traceroute 8.8.8.8`
+- `show cdp neighbors detail`
+- `show lldp neighbors`
+
+### 5. VLAN, VTP, EtherChannel
+```bash
+vlan 20
+ name Servers
+exit
+
+# EtherChannel (LACP)
+interface range Gi0/1 - 2
+ channel-group 1 mode active
+exit
+interface Port-channel 1
+ switchport mode trunk
+```
+
+### 6. Routing Protokollok
+**Static Route**:
+```bash
+ip route 0.0.0.0 0.0.0.0 192.168.1.1          # Default route
+ip route 10.20.0.0 255.255.0.0 192.168.2.2
+ip route <célhálózat> <maszk> <következő ugrás IP> [opcionális paraméterek]
+```
+
+**OSPF**:
+```bash
+router ospf 1
+ router-id 1.1.1.1
+ network 192.168.1.0 0.0.0.255 area 0
+ passive-interface Gi0/2
+```
+
+**EIGRP**:
+```bash
+router eigrp 100
+ network 192.168.0.0 0.0.255.255
+ no auto-summary
+```
+
+### 7. Biztonság
+**Port Security**:
+```bash
+interface Gi0/5
+ switchport mode access
+ switchport port-security maximum 2
+ switchport port-security mac-address sticky
+ switchport port-security violation shutdown
+```
+
+**ACL** (Access Control List):
+```bash
+access-list 101 permit tcp 192.168.10.0 0.0.0.255 any eq 80
+access-list 101 deny ip any any
+interface Gi0/0
+ ip access-group 101 in
+```
+
+**DHCP Snooping & DAI** (ajánlott switcheken):
+```bash
+ip dhcp snooping
+ip dhcp snooping vlan 10,20
+interface Gi0/1
+ ip dhcp snooping trust
+```
+
+### 8. Hibakeresés és Karbantartás
+```bash
+# Clear counters
+clear counters
+clear mac address-table dynamic
+
+# Reload
+reload in 5          # 5 perc múlva
+reload cancel
+
+# Debug (óvatosan!)
+debug ip icmp
+undebug all          # vagy no debug all
+terminal monitor     # debug látása SSH-n keresztül
+```
+
+**Logok szűrése**:
+- `show logging | include OSPF`
+- `show ip route | include 10.10.`
+
+### 9. Gyakori Rövidítések
+- `sh` = `show`
+- `conf t` = `configure terminal`
+- `int Gi0/1` = `interface GigabitEthernet0/1`
+- `wr` = `write memory` / `copy run start`
+- `do sh run` = show parancs config mode-ból
+
+### 10. Tippek
+- Mindig `?` használatával derítsd ki a lehetőségeket.
+- Használj `do` parancsot config mode-ból (pl. `do sh run`).
+- Nagy környezetben: `terminal length 0` (végtelen output).
+- Konfiguráció mentése előtt: `show run | diff` (újabb IOS-okban).
+
+Ez a cheat sheet a mindennapi adminisztrációra és CCNA/CCNP szintű feladatokra fókuszál. Ha egy konkrét területet szeretnél sokkal részletesebben (pl. OSPF, BGP, Security, Automation/NetConf, Catalyst 9000 specifikus stb.), szólj, és kibővítem!

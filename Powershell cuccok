@@ -1,0 +1,339 @@
+**Windows Server 2022 PowerShell Cheat Sheet (nagyon részletes)**
+
+Windows Server 2022-ben alapból **PowerShell 5.1** van telepítve (Windows PowerShell). Ajánlott a **PowerShell 7+** telepítése a jobb teljesítmény és kompatibilitás miatt, de sok szerver-szerepkör (AD, Hyper-V, IIS) még a 5.1-es modulokra épül.
+
+### 1. Alapok & Segítség
+- `Get-Command` vagy `Get-Command -Module ActiveDirectory` — Összes parancs / modul parancsai
+- `Get-Help Get-Service -Examples` / `-Detailed` / `-Full` / `-Online` — Súgó
+- `Get-Member` (alias: `gm`) — Objektum tulajdonságai és metódusai (pl. `Get-Process | gm`)
+- `Update-Help` — Súgó fájlok frissítése
+- `$PSVersionTable` — PowerShell verzió
+- `Get-ExecutionPolicy` / `Set-ExecutionPolicy RemoteSigned` — Végrehajtási szabályzat
+- `Get-Module -ListAvailable` — Telepített modulok
+- `Import-Module ActiveDirectory` — Modul betöltése
+
+**Alias-ek (gyors parancsok)**: `ls`=`Get-ChildItem`, `cd`=`Set-Location`, `pwd`=`Get-Location`, `cat`=`Get-Content`, `rm`=`Remove-Item`, `cp`=`Copy-Item`, `mkdir`=`New-Item`.
+
+### 2. Fájl- és könyvtárkezelés
+- `Get-ChildItem . -Recurse -File` (vagy `ls -R`) — Fájlok listázása
+- `Get-Content file.txt -Tail 10` — Fájl tartalma (utolsó sorok)
+- `Set-Content` / `Add-Content` — Írás / hozzáfűzés fájlba
+- `Copy-Item source dest -Recurse` — Másolás
+- `Move-Item` / `Remove-Item -Recurse -Force` — Áthelyezés / törlés
+- `New-Item -ItemType Directory` / `File` — Új mappa/fájl
+- `Get-ACL` / `Set-ACL` — Jogosultságok (NTFS)
+
+### 3. Folyamatok és Szolgáltatások
+- `Get-Process` (alias: `ps`) / `Stop-Process -Name chrome`
+- `Get-Service` / `Start-Service` / `Stop-Service` / `Restart-Service`
+- `Get-Service | Where-Object {$_.Status -eq 'Running'}`
+- `Get-Process | Sort-Object CPU -Descending | Select -First 10`
+
+### 4. Hálózat (hagyományos netsh/ipconfig helyett)
+- `Get-NetAdapter` — Hálózati adapterek
+- `Get-NetIPAddress` / `New-NetIPAddress` / `Remove-NetIPAddress` — IP konfiguráció
+- `Get-NetRoute` — Útválasztás
+- `Test-Connection google.com` (ping)
+- `Test-NetConnection -Port 3389` — Port teszt
+- `Resolve-DnsName` — DNS lookup
+- `Get-NetTCPConnection` — Aktív kapcsolatok (netstat)
+- `Get-DnsClientServerAddress` / `Set-DnsClientServerAddress`
+
+**Tűzfal**:
+- `Get-NetFirewallRule` / `Enable-NetFirewallRule` / `New-NetFirewallRule`
+
+### 5. Rendszer és Hardver
+- `Get-ComputerInfo` — Rendszerinfó
+- `systeminfo` vagy `Get-WmiObject win32_operatingsystem`
+- `Restart-Computer -Force` / `Stop-Computer`
+- `Get-WinEvent -LogName System -MaxEvents 50` — Eseménynapló
+- `Get-EventLog -LogName System | Where {$_.EntryType -eq 'Error'}`
+- `Clear-EventLog -LogName System`
+- `Get-HotFix` — Telepített frissítések
+
+### 6. Active Directory (modul: ActiveDirectory)
+Először: `Install-WindowsFeature RSAT-AD-PowerShell` (ha nem DC).
+
+**Általános**:
+- `Get-ADDomain` / `Get-ADForest`
+- `Get-ADDomainController -Filter *`
+
+**Felhasználók**:
+- `Get-ADUser -Filter * -Properties *`
+- `Get-ADUser username -Properties MemberOf, LastLogonDate`
+- `New-ADUser -Name "Teszt" -AccountPassword (ConvertTo-SecureString "Pass123" -AsPlainText -Force) -Enabled $true`
+- `Set-ADUser` / `Disable-ADUser` / `Enable-ADUser` / `Unlock-ADUser`
+- `Search-ADAccount -LockedOut` / `-AccountDisabled`
+
+**Csoportok**:
+- `Get-ADGroupMember "GroupName"`
+- `Add-ADGroupMember -Identity "Group" -Members user1,user2`
+- `Get-ADGroup -Filter *`
+
+**Számítógépek**:
+- `Get-ADComputer -Filter *`
+- `Remove-ADComputer`
+
+**OU-k és mozgatás**:
+- `New-ADOrganizationalUnit`
+- `Move-ADObject`
+
+### 7. Szerver Szerepkörök
+
+**Hyper-V** (modul: Hyper-V):
+- `Install-WindowsFeature Hyper-V -IncludeManagementTools`
+- `Get-VM` / `New-VM` / `Start-VM` / `Stop-VM`
+- `Get-VMSwitch` / `New-VMSwitch`
+
+**IIS** (modul: IISAdministration vagy WebAdministration):
+- `Install-WindowsFeature Web-Server -IncludeManagementTools`
+- `Get-IISSite` / `New-IISSite`
+- `Get-WebBinding` / `New-WebBinding`
+
+**Windows Feature-ök**:
+- `Get-WindowsFeature` / `Install-WindowsFeature` / `Uninstall-WindowsFeature`
+
+### 8. Távoli Management (Remoting)
+- `Enable-PSRemoting -Force`
+- `Enter-PSSession -ComputerName szerver`
+- `Invoke-Command -ComputerName szerver -ScriptBlock { Get-Service }`
+- `New-PSSession` (több szerverre)
+
+### 9. Scripting Alapok
+**Változók**:
+- `$a = "szöveg"` / `$szam = 5`
+- `$tomb = @("1","2")` / `$hash = @{key="value"}`
+
+**Pipeline**:
+- `Get-Process | Where-Object {$_.CPU -gt 100} | Select Name, CPU | Sort CPU -Descending`
+
+**Operátorok** (fontosak):
+- `-eq`, `-ne`, `-gt`, `-lt`, `-like "*szöveg*"`, `-match`
+- `-and`, `-or`
+- `?` (ternary PS7+): `$x -gt 10 ? "High" : "Low"`
+
+**Ciklusok**:
+- `foreach ($item in $tomb) { }`
+- `ForEach-Object { }` (alias `%`)
+- `if () {} else {}` / `switch () {}`
+
+**Export/Import**:
+- `Export-Csv -Path file.csv -NoTypeInformation`
+- `Import-Csv`
+- `ConvertTo-Json` / `ConvertFrom-Json`
+- `Out-GridView` — Interaktív tábla
+
+### 10. Hasznos Egyéb
+- `Get-WindowsUpdateLog` — Update log
+- `wevtutil` vagy `Get-WinEvent` — Részletes naplózás
+- `Get-CimInstance` (WMI utód) pl. `Get-CimInstance Win32_LogicalDisk`
+- `Start-Process` / `Start-Job` / `Start-ThreadJob` (PS7)
+- `Measure-Command { }` — Teljesítmény mérés
+
+### Tippek Windows Server 2022-höz
+- **Server Core**-on csak PowerShell van (nincs GUI).
+- RSAT eszközök távoli managementhez: `Install-WindowsFeature RSAT-*`
+- PowerShell 7 telepítés: Winget vagy hivatalos MSI.
+- Legjobb gyakorlat: mindig `Get-Help` és `Get-Command` használatával derítsd ki a pontos paramétereket.
+- Szkriptek futtatása: `. .\script.ps1` (current scope) vagy `& .\script.ps1`.
+
+Ez a cheat sheet a leggyakoribb szerver-adminisztrációs feladatokra fókuszál. Részletesebb példákért mindig használd a beépített súgót (`Get-Help <cmdlet> -Examples`).
+
+________________________________________________________________________
+
+**6. Active Directory – Részletes PowerShell kezelés (Windows Server 2022)**
+
+A modul neve: **ActiveDirectory**. Domain Controller-en alapból elérhető, más gépeken telepítened kell:
+
+```powershell
+# Telepítés (RSAT)
+Install-WindowsFeature RSAT-AD-PowerShell -IncludeAllSubFeature -IncludeManagementTools
+
+# Betöltés (általában automatikus, de biztonság kedvéért)
+Import-Module ActiveDirectory
+```
+
+### Általános domain infók
+```powershell
+Get-ADDomain                    # Aktuális domain infók
+Get-ADForest                    # Forest infók
+Get-ADDomainController -Filter * | Select Hostname, OperatingSystem, Site
+Get-ADDefaultDomainPasswordPolicy   # Alap jelszóházirend
+```
+
+### Felhasználók kezelése
+```powershell
+# Felhasználó lekérdezése
+Get-ADUser -Identity "tamas" -Properties *          # Minden tulajdonság
+Get-ADUser -Filter * -SearchBase "OU=Users,DC=contoso,DC=com" | Select Name, SamAccountName, LastLogonDate
+
+# Új felhasználó létrehozása (részletes példa)
+$securePass = ConvertTo-SecureString "SuperTitkosJelszo123!" -AsPlainText -Force
+
+New-ADUser -Name "Teszt Elek" `
+           -GivenName "Teszt" `
+           -Surname "Elek" `
+           -SamAccountName "telek" `
+           -UserPrincipalName "telek@contoso.com" `
+           -Path "OU=Users,DC=contoso,DC=com" `
+           -AccountPassword $securePass `
+           -Enabled $true `
+           -ChangePasswordAtLogon $true `
+           -Title "Rendszergazda" `
+           -Department "IT" `
+           -EmailAddress "telek@contoso.com"
+
+# Tömeges létrehozás CSV-ből
+Import-Csv users.csv | ForEach-Object {
+    New-ADUser -Name $_.Name -SamAccountName $_.SamAccountName -Enabled $true `
+               -AccountPassword (ConvertTo-SecureString $_.Password -AsPlainText -Force)
+}
+
+# Jelszó módosítás
+Set-ADAccountPassword -Identity "telek" -Reset -NewPassword (ConvertTo-SecureString "UjJelszo456!" -AsPlainText -Force)
+
+# Tiltás / Engedélyezés / Feloldás
+Disable-ADAccount -Identity "telek"
+Enable-ADAccount -Identity "telek"
+Unlock-ADAccount -Identity "telek"
+```
+
+### Csoportok kezelése
+```powershell
+# Csoport lekérdezése és tagok
+Get-ADGroup -Filter * | Select Name, GroupScope, GroupCategory
+Get-ADGroupMember -Identity "Domain Admins" -Recursive
+
+# Új csoport
+New-ADGroup -Name "IT-Admins" -GroupScope Global -GroupCategory Security -Path "OU=Groups,DC=contoso,DC=com"
+
+# Tag hozzáadás / eltávolítás
+Add-ADGroupMember -Identity "IT-Admins" -Members "telek", "jdoe"
+Remove-ADGroupMember -Identity "IT-Admins" -Members "jdoe" -Confirm:$false
+```
+
+### Számítógépek és egyéb objektumok
+```powershell
+Get-ADComputer -Filter * | Select Name, OperatingSystem, LastLogonDate
+New-ADComputer -Name "PC-TEST01" -Path "OU=Computers,DC=contoso,DC=com"
+
+# Inaktív / zárolt fiókok keresése
+Search-ADAccount -AccountDisabled
+Search-ADAccount -LockedOut
+Search-ADAccount -PasswordNeverExpires:$true
+```
+
+### OU-k és struktúra
+```powershell
+New-ADOrganizationalUnit -Name "Budapest" -Path "DC=contoso,DC=com"
+Move-ADObject -Identity "CN=telek,OU=Users,DC=contoso,DC=com" -TargetPath "OU=Budapest,DC=contoso,DC=com"
+```
+
+**Tippek**:
+- Használj mindig `-Properties *` ha sok infóra van szükséged.
+- Szűrőkben: `-Filter "Name -like '*admin*'"` vagy `-Filter {Enabled -eq $true}`.
+- Nagy környezetben adj meg `-Server dc01.contoso.com` paramétert.
+
+---
+
+**7. Szerver Szerepkörök és Features kezelése**
+
+### Windows Features telepítése / listázása
+```powershell
+# Összes elérhető szerepkör és feature listázása
+Get-WindowsFeature | Out-GridView   # szép táblázatos nézet
+
+# Telepítés példák
+Install-WindowsFeature -Name Web-Server -IncludeManagementTools -IncludeAllSubFeature
+Install-WindowsFeature Hyper-V -IncludeManagementTools
+Install-WindowsFeature AD-Domain-Services -IncludeManagementTools   # Domain Controller szerepkör
+
+# Telepítés utáni újraindítás automatikus
+Install-WindowsFeature File-Services -Restart
+
+# Eltávolítás
+Uninstall-WindowsFeature Web-Server -Remove
+```
+
+### Hyper-V részletesen (modul: Hyper-V)
+```powershell
+# Telepítés (ha még nincs)
+Install-WindowsFeature Hyper-V -IncludeManagementTools -Restart
+
+# Virtuális gépek kezelése
+Get-VM
+Get-VM | Select Name, State, CPUUsage, MemoryAssigned, Uptime
+
+Start-VM -Name "WinServer01"
+Stop-VM -Name "WinServer01" -Force
+Restart-VM -Name "WinServer01"
+
+# Új VM létrehozása (részletes)
+New-VM -Name "TestVM" `
+       -MemoryStartupBytes 4GB `
+       -NewVHDPath "D:\VMs\TestVM.vhdx" `
+       -NewVHDSizeBytes 80GB `
+       -Generation 2 `
+       -SwitchName "Default Switch"
+
+Set-VM -Name "TestVM" -ProcessorCount 4 -DynamicMemory:$true -MemoryMaximumBytes 8GB
+
+# Virtuális kapcsolók
+Get-VMSwitch
+New-VMSwitch -Name "ExternalSwitch" -NetAdapterName "Ethernet" -AllowManagementOS $true
+```
+
+**További hasznos Hyper-V parancsok**:
+- `Get-VMHost` – Host beállítások
+- `Checkpoint-VM -Name VMName` – Pillanatkép
+- `Measure-VM` – Erőforrás-használat
+- `Get-VHD` / `Resize-VHD`
+
+### IIS (Web Server) részletesen
+Két fő modul létezik: **WebAdministration** (régi) és **IISAdministration** (újabb, ajánlott).
+
+```powershell
+# Telepítés
+Install-WindowsFeature Web-Server -IncludeManagementTools
+
+Import-Module WebAdministration
+# vagy
+Import-Module IISAdministration
+
+# Weboldalak kezelése
+Get-IISSite
+New-IISSite -Name "MySite" -BindingInformation "*:80:" -PhysicalPath "C:\inetpub\MySite"
+
+# AppPool létrehozása
+New-WebAppPool -Name "MyAppPool"
+Set-ItemProperty IIS:\AppPools\MyAppPool -Name managedRuntimeVersion -Value "v4.0"
+
+# Virtuális könyvtár / Application
+New-WebApplication -Name "App" -Site "MySite" -PhysicalPath "C:\inetpub\MySite\App" -ApplicationPool "MyAppPool"
+
+# Binding (több domain / port)
+New-WebBinding -Name "MySite" -IPAddress "*" -Port 443 -Protocol https -HostHeader "www.example.com"
+```
+
+**További IIS példák**:
+- `Start-IISSite`, `Stop-IISSite`, `Restart-IISSite`
+- `Get-IISAppPool`, `Start-WebAppPool`
+- `Get-WebConfiguration` – Részletes konfiguráció
+
+### Egyéb gyakori szerepkörök
+- **File Server**: `Install-WindowsFeature FS-FileServer, FS-DFS-Namespace, FS-DFS-Replication`
+- **Print Server**: `Install-WindowsFeature Print-Server`
+- **DHCP**: `Install-WindowsFeature DHCP -IncludeManagementTools`
+- **DNS**: `Install-WindowsFeature DNS -IncludeManagementTools`
+
+**Tippek a szerepkörökhöz**:
+- Mindig használd a `-IncludeManagementTools` kapcsolót.
+- Nagyobb telepítésekhez készíts szkriptet, és teszteld `-WhatIf` paraméterrel.
+- Telepítés után ellenőrizd: `Get-WindowsFeature | Where Installed`
+
+
+
+
+
+
+

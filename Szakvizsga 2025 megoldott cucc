@@ -1,0 +1,831 @@
+
+1. VLAN létrehozása és inter-VLAN routing
+IRODA-SW2 switch-en:
+ciscoenable
+configure terminal
+vlan 102
+ name iroda102
+exit
+IRODA-RTR routeren (Router-on-a-Stick):
+ciscoenable
+configure terminal
+interface GigabitEthernet0/0.102     ! vagy FastEthernet0/0.102
+ encapsulation dot1Q 102
+ ip address 10.102.0.1 255.255.255.0   ! a topológia szerinti első IP
+no shutdown
+
+2. Port-channel (EtherChannel) létrehozása
+IRODA-SW2 switch-en:
+ciscoenable
+configure terminal
+interface range GigabitEthernet0/1 - 2     ! a másik switch-hez csatlakozó portok
+ channel-group 1 mode desirable
+exit
+interface Port-channel 1
+ switchport mode trunk
+ switchport trunk allowed vlan all
+no shutdown
+
+3. Alapértelmezett útvonal + OSPF redistribution
+KOZPONT-RTR routeren:
+ciscoenable
+configure terminal
+ip route 0.0.0.0 0.0.0.0 Serial0/0/1     ! vagy a szolgáltató felé mutató interfész
+router ospf 1
+ default-information originate
+
+4. PPP + CHAP hitelesítés WAN linken
+IRODA-RTR routeren:
+ciscoenable
+configure terminal
+interface Serial0/0/0
+ encapsulation ppp
+ ppp authentication chap
+ ppp chap hostname irodartr          ! ha szükséges
+ ppp chap password <közös jelszó>
+no shutdown
+
+5. Port Security
+ADMIN-SW switch-en (szerver port):
+ciscoenable
+configure terminal
+interface GigabitEthernet0/1     ! szerverhez csatlakozó port
+ switchport mode access
+ switchport port-security maximum 2
+ switchport port-security mac-address sticky
+ switchport port-security
+no shutdown
+
+6. Dinamikus PAT (NAT Overload)
+KOZPONT-RTR routeren:
+ciscoenable
+configure terminal
+access-list 1 permit 10.0.0.0 0.255.255.255
+ip nat inside source list 1 interface Serial0/0/1 overload
+(Az ip nat inside és ip nat outside már be van állítva a megfelelő interfészeken.)
+
+7. SSH konfiguráció (valós eszköz)
+Routeren:
+ciscoenable
+configure terminal
+username rtradmin privilege 15 secret adminpswd
+ip domain-name jedlik.eu
+crypto key generate rsa modulus 1024
+ip ssh version 2
+line vty 0 4
+ login local
+ transport input ssh
+Képernyőképeket kell készíteni:
+
+username parancsról
+crypto key generate rsa parancsról
+line vty konfigurációról
+
+
+8. IPv6 konfiguráció (VLAN1)
+Switch-en:
+ciscoenable
+configure terminal
+interface VLAN 1
+ ipv6 address 2001:DB8:13C::1/64
+ ipv6 address FE80::1 link-local
+Ha az eszköz nem támogatja az IPv6-ot:
+ciscointerface VLAN 99
+ ip address 192.168.99.62 255.255.255.224     ! utolsó használható cím a második /27 alhálózatban
+ ip default-gateway 192.168.99.33              ! első használható cím
+
+
+
+--------------------------------------------------------------------------
+
+WINDOWS
+
+Windows Server 2025 
+
+### 1. Tartományvezérlővé léptetés (dcpromo)
+
+1. Indítsd el a **Server2025** virtuális gépet.
+2. Jelentkezz be:  
+   **Felhasználó:** Administrator  
+   **Jelszó:** Password123
+3. Nyisd meg a **Server Manager** → **Manage** → **Add Roles and Features** (ha még nem lenne telepítve).
+4. Nyisd meg a **PowerShell**-t **Administrator** joggal és add ki a következő parancsot:
+
+```powershell
+Install-WindowsFeature AD-Domain-Services -IncludeManagementTools
+```
+
+5. Utána indítsd el a **Server Manager**ből a **Promote this server to a domain controller** varázslót.
+6. Válaszd: **Add a new forest**
+7. **Root domain name:** `vizsga25.jedlik`
+8. Minden további oldalon hagyd az **alapértelmezett** beállításokat.
+9. A telepítés végén a szerver újraindul.
+
+---
+
+### 2. Szervezeti egységek (OU) létrehozása
+
+**Active Directory Users and Computers** (dsa.msc) megnyitása után hozz létre a gyökérben:
+
+- **Hallgatók**
+- **Titkárság**
+- **Tanárok**
+  - **Humán** (a Tanárok alatt)
+  - **Reál** (a Tanárok alatt)
+
+**Készíts képernyőképet** az OU struktúráról.
+
+---
+
+### 3. Felhasználók és csoportok létrehozása
+
+#### Felhasználók:
+
+| Teljes név          | Bejelentkezési név     | OU                  |
+|---------------------|------------------------|---------------------|
+| Erős Elek           | eros.elek              | Hallgatók           |
+| Farkas Leo          | farkas.leo             | Tanárok/Humán       |
+| Vezetékes Valér     | vezetekes.valer        | Titkárság           |
+
+**Mindegyiknél:**
+- Jelszó: pl. `Password123` vagy saját erős jelszó
+- **User must change password at next logon** = **NE** legyen kipipálva
+
+#### Csoportok:
+
+| Csoportnév       | Hatókör          | Típus          | OU         |
+|------------------|------------------|----------------|------------|
+| Igazgatóság      | Tartományon belüli | Biztonsági     | Tanárok    |
+| Nappali képzés   | Globális         | Biztonsági     | Hallgatók  |
+| Esti képzés      | Globális         | Biztonsági     | Hallgatók  |
+| Email            | Tartományon belüli | Terjesztési  | Titkárság  |
+
+#### Csoporttagságok:
+
+- **Erős Elek** → **Nappali képzés**
+- **Vezetékes Valér** → **Igazgatóság**
+- **Minden felhasználó** (3 db) → **Email** csoport tagja legyen
+
+**Készíts képernyőképet** az OU-król, csoportokról, típusukról és a tagokról.
+
+---
+
+### 4. PowerShell feladatok
+
+Nyisd meg a **PowerShell**-t **Administrator**ként és add ki sorban:
+
+```powershell
+# 1. Rendszergazdák OU létrehozása a gyökérben
+New-ADOrganizationalUnit -Name "Rendszergazdák" -Path "DC=vizsga25,DC=jedlik"
+
+# 2. adminka felhasználó létrehozása
+New-ADUser -Name "adminka" `
+           -SamAccountName "adminka" `
+           -Path "OU=Rendszergazdák,DC=vizsga25,DC=jedlik" `
+           -AccountPassword (ConvertTo-SecureString "Password123" -AsPlainText -Force) `
+           -Enabled $true `
+           -ChangePasswordAtLogon $false
+
+# 3. adminok csoport létrehozása + adminka tag hozzáadása
+New-ADGroup -Name "adminok" `
+            -GroupScope Global `
+            -GroupCategory Security `
+            -Path "OU=Rendszergazdák,DC=vizsga25,DC=jedlik"
+
+Add-ADGroupMember -Identity "adminok" -Members "adminka"
+
+# 4. IIS (Webszerver) szerepkör telepítése
+Install-WindowsFeature -Name Web-Server -IncludeManagementTools
+```
+
+**Készíts képernyőképet** a PowerShell ablakról a parancsok eredményével.
+
+---
+
+### 5. DHCP kiszolgáló beállítása
+
+1. **Server Manager** → **Add Roles and Features** → telepítsd a **DHCP Server** szerepkört.
+2. A telepítés után nyisd meg a **DHCP** konzolt.
+3. Hozz létre új **Scope**-ot:
+
+- **Scope neve:** pl. Iroda25
+- **IP tartomány:** 192.168.25.0 /24
+- **Kiosztható tartomány:** 192.168.25.120 – 192.168.25.180
+- **Kizárások:** nincs (ha nincs)
+- **Router (Default Gateway):** 192.168.25.1
+- **DNS Server:** 192.168.25.10
+- Aktiváld a hatókört.
+
+**Készíts képernyőképet** a hatókör beállításairól (Scope Options is látszódjon).
+
+---
+
+### 6. Csoportházirend (GPO)
+
+1. Nyisd meg a **Group Policy Management** konzolt (`gpmc.msc`).
+2. Hozz létre új GPO-t: **Tanulok_szabályozasa**
+3. Linkeld a **Hallgatók** szervezeti egységre.
+4. Szerkeszd a GPO-t:
+
+#### Beállítások:
+
+**a) Szoftver telepítése (Computer Configuration):**
+- `Computer Configuration` → `Policies` → `Software Settings` → `Software Installation`
+- New Package → tallózd ki a gyökérkönyvtárban lévő `xmlnotepad.msi` fájlt
+- Deployment type: **Assigned**
+
+**b) Asztal háttérkép megváltoztatásának tiltása:**
+- `User Configuration` → `Policies` → `Administrative Templates` → `Control Panel` → `Personalization`
+- **Prevent changing desktop background** = **Enabled**
+
+**c) Hatókör szűkítése (Security Filtering):**
+- Töröld az **Authenticated Users** csoportot
+- Add hozzá: **Nappali képzés** és **Esti képzés** csoportokat
+
+**d) Home mappa beállítása:**
+- `User Configuration` → `Policies` → `Windows Settings` → `Folder Redirection`
+- **Documents** → Basic → `%HOMESHARE%%HOMEPATH%` vagy manuálisan `\\vizsga25.jedlik\Home\%username%`
+  (ha van Home mappa megosztás)
+
+**e) Házirend frissítése parancs:**
+```cmd
+gpupdate /force
+```
+
+**Készíts képernyőképeket:**
+- A GPO beállításairól (főoldal + Security Filtering)
+- A linkről a Hallgatók OU-n
+- A `gpupdate /force` parancsról
+
+---
+
+
+------------------------------------------------------------------------
+
+LINUX
+
+**✅ Linux Adminisztráció – Feladatmegoldás (Ubuntu/Debian alapú rendszer)**
+
+### 1. Felhasználó és csoport létrehozása
+
+```bash
+# Csoport létrehozása
+sudo groupadd titkarsag
+
+# Felhasználó létrehozása a megfelelő elsődleges csoporttal
+sudo useradd -m -g titkarsag titkar
+
+# Jelszó beállítása
+sudo passwd titkar
+```
+
+**Képernyőkép készítése:**
+- A parancsok lefuttatása után: `id titkar` vagy `cat /etc/passwd | grep titkar` és `cat /etc/group | grep titkarsag`
+
+---
+
+### 2. Partíció meghatározása és syslog keresés
+
+```bash
+# 1. A /home partíció eszköznevének megállapítása
+df -h /home
+lsblk -f
+# vagy
+findmnt /home
+```
+
+**Példa kimenet alapján** általában `/dev/sda2`, `/dev/sda3`, `/dev/nvme0n1p2` stb. lehet. Jegyezd meg az eszközt, pl. `/dev/sda2`.
+
+```bash
+# Syslog sorainak száma, ahol szerepel a partíció
+sudo grep -c "/dev/sda2" /var/log/syslog
+```
+
+**Vagy részletesebben:**
+
+```bash
+sudo grep "/dev/sda2" /var/log/syslog | wc -l
+```
+
+**Készíts képernyőképet**, ahol látszik az eszköz neve (`lsblk` vagy `df`) és a parancs eredménye.
+
+---
+
+### 3. DHCP kiszolgáló telepítése és konfigurálása
+
+**Aktuális IP cím megállapítása:**
+
+```bash
+ip addr show
+# vagy
+ip a
+```
+
+Tegyük fel, hogy a gép IP-je pl. **10.0.0.50/24** (írd át a sajátodra!).
+
+**Telepítés:**
+
+```bash
+sudo apt update
+sudo apt install isc-dhcp-server -y
+```
+
+**Konfiguráció** (`/etc/dhcp/dhcpd.conf`):
+
+```bash
+sudo nano /etc/dhcp/dhcpd.conf
+```
+
+**Tartalom (írd felül a megfelelő részeket):**
+
+```bash
+default-lease-time 600;
+max-lease-time 7200;
+
+subnet 10.0.0.0 netmask 255.255.255.0 {     # <-- a saját alhálózatod!
+    range 10.0.0.100 10.0.0.114;            # 15 cím: 100-tól kezdve
+    option routers 10.0.0.1;                # átjáró (általában a router IP-je)
+    option domain-name-servers 8.8.8.8;
+}
+
+# Fix IP a megadott MAC címre (utolsó használható cím: pl. 10.0.0.114)
+host flashy {
+    hardware ethernet 46:6c:61:73:68:79;
+    fixed-address 10.0.0.114;
+}
+```
+
+**Interfész beállítása:**
+
+```bash
+sudo nano /etc/default/isc-dhcp-server
+# INTERFACESv4="enp0s3"   # a saját interfészed neve (ip a-ból)
+```
+
+**Indítás és ellenőrzés:**
+
+```bash
+sudo systemctl restart isc-dhcp-server
+sudo systemctl status isc-dhcp-server
+sudo systemctl enable isc-dhcp-server
+```
+
+**Képernyőképek:**
+- `ip a` (IP cím)
+- Telepítés
+- `/etc/dhcp/dhcpd.conf` releváns része
+- `systemctl status isc-dhcp-server`
+
+---
+
+### 4. Webszerver (Apache) + UserDir (~felhasználó) konfiguráció
+
+```bash
+sudo apt install apache2 -y
+```
+
+**UserDir modul engedélyezése:**
+
+```bash
+sudo a2enmod userdir
+sudo systemctl restart apache2
+```
+
+**Felhasználói könyvtár létrehozása `titkar` számára:**
+
+```bash
+sudo -u titkar mkdir /home/titkar/public_html
+sudo -u titkar echo "<h1>Titkar honlapja működik!</h1>" > /home/titkar/public_html/index.html
+
+# Jogosultságok
+sudo chmod 755 /home/titkar
+sudo chmod 755 /home/titkar/public_html
+sudo chmod 644 /home/titkar/public_html/index.html
+```
+
+**Ellenőrzés:**
+
+Nyisd meg böngészőben:  
+`http://10.0.0.1/~titkar`  (vagy a saját szerver IP-d)
+
+**Képernyőképek:**
+- Apache telepítés
+- `a2enmod userdir` parancs
+- `systemctl status apache2`
+- `/etc/apache2/mods-enabled/userdir.conf` tartalma
+- A működő weboldal (`~titkar`)
+
+---
+
+**További hasznos parancsok ellenőrzéshez:**
+
+```bash
+# Apache státusz
+sudo systemctl status apache2
+
+# DHCP lease-ek
+cat /var/lib/dhcp/dhcpd.leases
+```
+
+---------------------------------------------------------
+SaaS
+
+**✅ Feladatmegoldás – SaaS és PaaS (AWS)**
+
+### 1. SaaS (Software as a Service)
+
+#### a. E-mail fiók létrehozása
+
+1. Menj pl. a következő oldalak egyikére:
+   - `outlook.com` (ajánlott)
+   - `gmail.com`
+   - `proton.me`
+
+2. Hozz létre új fiókot a következő formátumban:  
+   **`keresztneve.vezetekneve.vizs2025@outlook.com`** (pl. `eszter.winch.vizs2025@outlook.com`)
+
+**Készíts képernyőképeket:**
+- A felhasználónév megadásáról
+- A sikeres fióklétrehozásról („Fiók létrehozva” üzenet)
+
+---
+
+#### b. Dropbox tárhely
+
+1. Nyisd meg a böngészőt és menj a **dropbox.com** oldalra.
+2. Kattints a **Sign up** / Regisztráció gombra.
+3. Add meg:
+   - Teljes név: pl. `Winch Eszter Vizsga25`
+   - E-mail: az előző pontban létrehozott címed
+   - Válassz erős jelszót
+4. Jelentkezz be a fiókba.
+5. Hozz létre egy új mappát: **Vizs2025**
+6. Hozz létre a saját gépeden egy fájlt:
+   - Név: `proba2025.txt`
+   - Tartalom: `2025_vizsga`
+7. Töltsd fel ezt a fájlt a **Vizs2025** mappába.
+
+**Készíts képernyőképeket:**
+- Fiók regisztrációról / bejelentkezésről
+- A `Vizs2025` mappa létrehozásáról
+- A fájl feltöltéséről (feltöltött fájl látható legyen)
+
+---
+
+### 2. PaaS – Amazon Web Services (AWS Academy)
+
+#### a. Amazon VPC létrehozása
+
+1. Lépj be: **https://awsacademy.instructure.com/login/canvas**
+2. Ellenőrizd, hogy a régió **N. Virginia (us-east-1)** legyen.
+3. Nyisd meg az **AWS Management Console**-t.
+
+**VPC létrehozása:**
+
+1. Menj a **VPC** szolgáltatásba.
+2. Kattints **Create VPC** → **VPC and more** (varázsló).
+3. Paraméterek:
+   - Name: `VizsVPC`
+   - Number of Availability Zones: **1**
+   - Private subnet: `10.0.100.0/24`
+   - Public subnet: `10.0.101.0/24`
+   - NAT Gateway: **1 per AZ** (In 1 Availability Zone)
+   - VPC endpoints: **None**
+   - DNS options: **Enable DNS hostnames** + **Enable DNS resolution** ✓
+
+**További subnetek létrehozása:**
+
+- **vizs-sn-public2**
+  - VPC: VizsVPC
+  - Availability Zone: másik, mint az első (pl. us-east-1b)
+  - IPv4 CIDR: `10.0.102.0/24`
+
+- **vizs-sn-private2**
+  - VPC: VizsVPC
+  - Availability Zone: ugyanaz, mint az első private subnet (pl. us-east-1a)
+  - IPv4 CIDR: `10.0.103.0/24`
+
+**Útválasztás (Route Tables) beállítása:**
+
+Mindkét **private** subnetnél győződj meg róla, hogy a megfelelő route table van hozzárendelve (NAT Gateway-en keresztül).  
+A **public** subneteknél legyen Internet Gateway route (`0.0.0.0/0` → igw-…).
+
+**Biztonsági csoport létrehozása:**
+
+- Név: `WebBiztGroup`
+- Description: `http hozzaferes`
+- Inbound rules:
+  - Type: **HTTP**
+  - Source: **Anywhere-IPv4** (0.0.0.0/0)
+  - Description: `Web keres engedely`
+
+---
+
+#### b. EC2 Web szerver indítása
+
+**EC2 példány létrehozása:**
+
+1. Menj az **EC2** szolgáltatásba → **Launch instance**
+2. Paraméterek:
+
+   | Paraméter                  | Érték                              |
+   |----------------------------|------------------------------------|
+   | Name                       | `VizsServer25`                     |
+   | AMI                        | **Amazon Linux 2023** (x86_64)     |
+   | Instance type              | `t2.micro`                         |
+   | Key pair                   | `vockey`                           |
+   | Network                    | `VizsVPC`                          |
+   | Subnet                     | `vizs-sn-public2`                  |
+   | Auto-assign Public IP      | **Enable**                         |
+   | Security Group             | `WebBiztGroup`                     |
+   | Storage                    | 15 GiB gp3                         |
+
+3. **Advanced details** → **User data** mezőbe írd be:
+
+```bash
+#!/bin/bash
+yum update -y
+yum install -y httpd
+systemctl start httpd
+systemctl enable httpd
+echo "<h1>VizsServer25 - Vizsga 2025 - Működik!</h1>" > /var/www/html/index.html
+```
+
+4. Indítsd el az instance-t.
+
+**Ellenőrzés:**
+
+- Várd meg, amíg az Instance **Running** állapotba kerül és megkapja a Public IP-t.
+- Böngészőben nyisd meg: `http://<public-ip>`
+- Látnod kell a „VizsServer25 - Vizsga 2025 - Működik!” feliratot.
+
+**Készíts képernyőképeket** a teljes folyamat fontos lépéseiről:
+- VPC létrehozás paraméterei
+- Subnetek
+- Security Group szabály
+- EC2 Launch konfiguráció (User data is látszódjon)
+- Futó EC2 instance részletei
+- A működő weboldal
+
+
+----------------------------------------------------------------
+
+PaaS
+
+**✅ Részletes útmutató – AWS VPC + EC2 (Vizsga 2025)**
+
+### a. Amazon Virtual Private Cloud (VPC) létrehozása
+
+1. Lépj be az **AWS Academy** oldalra:  
+   [https://awsacademy.instructure.com/login/canvas](https://awsacademy.instructure.com/login/canvas)
+
+2. Győződj meg róla, hogy a régió **N. Virginia (us-east-1)**.
+
+#### VPC létrehozása (VPC and more varázslóval)
+
+1. Menj a **VPC** szolgáltatásba.
+2. Kattints a jobb oldalon: **Create VPC** → válaszd a **VPC and more** opciót.
+3. Töltsd ki a következő paramétereket:
+
+   - **Name tag**: `VizsVPC`
+   - **IPv4 CIDR block**: `10.0.0.0/16` (automatikusan jó lesz)
+   - **Number of Availability Zones**: `1`
+   - **Customize AZs**: hagyd az elsőt (pl. us-east-1a)
+   - **Public subnet CIDR**: `10.0.101.0/24`
+   - **Private subnet CIDR**: `10.0.100.0/24`
+   - **NAT Gateway**: `In 1 Availability Zone`
+   - **VPC endpoints**: `None`
+   - **DNS options**:  
+     - Enable DNS hostnames ✓  
+     - Enable DNS resolution ✓
+
+4. Kattints **Create VPC**.
+
+---
+
+#### További subnetek létrehozása
+
+Miután a VPC elkészült:
+
+**1. Public2 subnet:**
+- VPC → Subnets → **Create subnet**
+  - VPC: `VizsVPC`
+  - Subnet name: `vizs-sn-public2`
+  - Availability Zone: **másik** mint az első (pl. **us-east-1b**)
+  - IPv4 CIDR block: `10.0.102.0/24`
+
+**2. Private2 subnet:**
+- Create subnet
+  - VPC: `VizsVPC`
+  - Subnet name: `vizs-sn-private2`
+  - Availability Zone: **ugyanaz**, mint az első private (pl. **us-east-1a**)
+  - IPv4 CIDR block: `10.0.103.0/24`
+
+---
+
+#### Forgalomirányítás (Route Tables) beállítása
+
+- Nyisd meg a **Route Tables**-t.
+- A **public** subnetekhez tartozó route table-hez (aminek van `0.0.0.0/0` → Internet Gateway):
+  - Rendeld hozzá a `vizs-sn-public2` subnetet is.
+
+- A **private** subnetekhez tartozó route table-hez (aminek van `0.0.0.0/0` → NAT Gateway):
+  - Rendeld hozzá a `vizs-sn-private2` subnetet.
+
+---
+
+#### Biztonsági csoport létrehozása
+
+1. VPC → **Security Groups** → **Create security group**
+2. Beállítások:
+   - Name: `WebBiztGroup`
+   - Description: `http hozzaferes`
+   - VPC: `VizsVPC`
+3. Inbound rules:
+   - **Add rule**
+     - Type: **HTTP**
+     - Source: **Anywhere-IPv4** (`0.0.0.0/0`)
+     - Description: `Web keres engedely`
+
+---
+
+### b. EC2 Web szerver indítása
+
+1. Menj az **EC2** szolgáltatásba → **Launch instance**
+
+#### Paraméterek pontosan:
+
+| Mező                        | Érték                                      |
+|----------------------------|--------------------------------------------|
+| Name                       | `VizsServer25`                             |
+| AMI                        | **Amazon Linux 2023 AMI** (x86_64)         |
+| Instance type              | `t2.micro`                                 |
+| Key pair                   | `vockey`                                   |
+| Network settings → VPC     | `VizsVPC`                                  |
+| Subnet                     | `vizs-sn-public2`                          |
+| Auto-assign Public IP      | **Enable**                                 |
+| Security group             | `WebBiztGroup`                             |
+| Storage                    | 15 GiB → **gp3**                           |
+
+**User data** (Advanced details alatt):
+
+```bash
+#!/bin/bash
+yum update -y
+yum install -y httpd
+systemctl enable httpd
+systemctl start httpd
+echo "<h1>VizsServer25 - Vizsga 2025 - Sikeresen elindult!</h1>" > /var/www/html/index.html
+```
+
+4. Kattints **Launch instance**.
+
+---
+
+**Ellenőrzés:**
+
+- Várd meg, míg az állapot **Running** lesz.
+- Másold ki a **Public IPv4 address**-t.
+- Böngészőben nyisd meg: `http://<public-ip>`
+
+Ha látod a feliratot, akkor működik.
+
+---
+
+**Készíts képernyőképeket az alábbiakról:**
+
+1. VPC létrehozás summary oldala (paraméterek)
+2. A két extra subnet (vizs-sn-public2 és vizs-sn-private2)
+3. Route table hozzárendelések
+4. Security Group szabály (HTTP)
+5. EC2 Launch konfiguráció (főoldal + User data rész)
+6. Futó EC2 részletei (Public IP-vel)
+7. A működő weboldal (böngészőből)
+
+---
+
+Ha elakadsz egy konkrét lépésnél (pl. subnet nem jelenik meg, route table, stb.), írd meg, hogy pontosan hol tartasz, és segítek tovább!
+
+--------------------------------------------------------------------
+
+IaaS
+
+**✅ AWS RDS (MySQL) létrehozása – Részletes útmutató**
+
+### 1. Biztonsági csoport létrehozása az RDS-hez
+
+1. Menj a **VPC** szolgáltatásba → **Security Groups** → **Create security group**
+2. Paraméterek:
+   - **Name**: `RDSBiztGroup`
+   - **Description**: `hozzaferes engedelyezes`
+   - **VPC**: `VizsVPC`
+
+3. **Inbound rules**:
+   - **Add rule**
+     - Type: **MySQL/Aurora** (port **3306**)
+     - Source: **Security Group** → válaszd ki a `WebBiztGroup`-ot
+     - Description: `Adatbazis biztonsag`
+
+4. Kattints **Create security group**.
+
+---
+
+### 2. Database Subnet Group létrehozása
+
+1. Menj az **RDS** szolgáltatásba.
+2. Bal oldali menü: **Subnet groups** → **Create DB subnet group**
+3. Paraméterek:
+   - **Name**: `RDSsnGroup`
+   - **Description**: `DB alháló csoport`
+   - **VPC**: `VizsVPC`
+   - Válaszd ki **két Availability Zone**-t (pl. us-east-1a és us-east-1b)
+   - Subnets:
+     - `10.0.101.0/24` (public1)
+     - `10.0.103.0/24` (private2)
+
+4. Kattints **Create**.
+
+---
+
+### 3. RDS MySQL Adatbázis létrehozása
+
+1. RDS szolgáltatás → **Create database**
+2. Válaszd a **Standard create** módszert.
+
+#### Paraméterek pontosan:
+
+| Mező                          | Érték                              |
+|-------------------------------|------------------------------------|
+| **Engine**                    | **MySQL**                          |
+| **Template**                  | **Dev/Test**                       |
+| **Multi-AZ deployment**       | **Create a Multi-AZ DB instance**  |
+| **DB identifier**             | `vizsga-db`                        |
+| **Master username**           | `vizsga`                           |
+| **Master password**           | `vizsga25`                         |
+| **DB instance class**         | `db.t3.micro`                      |
+| **Storage type**              | **General Purpose (gp3)**          |
+| **Allocated storage**         | `25` GB                            |
+| **VPC**                       | `VizsVPC`                          |
+| **Subnet group**              | `RDSsnGroup`                       |
+| **Security group**            | `RDSBiztGroup`                     |
+| **Initial database name**     | `vizsDB`                           |
+
+**További beállítások (tiltsd le):**
+- **Monitoring** → Turn off
+- **Backup** → Enable automated backups = **Disabled**
+- **Encryption** → Enable encryption = **Disabled**
+
+4. Görgess le és kattints **Create database**.
+
+---
+
+### 4. Dokumentálás (amikor Ready állapotba kerül)
+
+Miután az adatbázis **Available** állapotba kerül:
+
+- Nyisd meg a részleteit.
+- Jegyezd fel / készíts képernyőképet az **Endpoint**-ről (pl. `vizsga-db.xxxxxxx.us-east-1.rds.amazonaws.com:3306`)
+
+---
+
+### 5. Adatbázis törlése
+
+1. Válaszd ki az adatbázist (`vizsga-db`).
+2. Kattints **Actions** → **Delete**.
+3. Írd be a megerősítést: `delete me`
+4. **Final snapshot** = ne készíts snapshot-et (uncheck).
+5. Erősítsd meg a törlést.
+
+**Készíts képernyőképet** a törlés megerősítéséről és a folyamat kezdetéről.
+
+---
+
+**Összes szükséges képernyőkép:**
+
+1. RDS Security Group (`RDSBiztGroup`) szabálya
+2. DB Subnet Group (`RDSsnGroup`) beállításai
+3. RDS Create Database oldal fontos részei (Engine, Instance class, Storage, VPC, Security group)
+4. Sikeresen elkészült adatbázis **Endpoint** címe
+5. Adatbázis törlése (Delete confirmation)
+
+---
+
+Ha kész vagy a létrehozással és látod az **Available** állapotot, írd meg, és segítek a végső dokumentálásban vagy a törlésben.
+
+**Figyelem**: A `t3.micro` Multi-AZ üzemmódban is futni fog, de vizsga környezetben ez teljesen elfogadható.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

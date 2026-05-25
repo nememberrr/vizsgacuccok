@@ -1,0 +1,1081 @@
+en
+conf t
+vlan 10
+name Piheno
+exit
+vlan 20
+name Rendszergazdak
+exit
+vlan 30
+name Iroda1
+exit
+vlan 40
+name Iroda2
+exit
+
+--------------------------------------
+SWI_Piheno lirili
+
+en
+conf t
+hostname SWI_Piheno
+vlan 10
+name Piheno
+exit
+vlan 20
+name Rendszergazdak
+exit
+vlan 30
+name Iroda1
+exit
+vlan 40
+name Iroda2
+exit
+interface fa0/24
+switchport mode trunk
+switchport trunk allowed vlan 10,20,30,40
+no shutdown
+exit
+interface fa0/23
+switchport mode trunk
+switchport trunk allowed vlan 10,20,30,40
+no shutdown
+exit
+in ra fa0/1 - fa0/21
+switchport mode access
+switchport access vlan 10
+spanning-tree portfast
+no shutdown
+exit
+
+--------------------------------------------------
+SWI_Rendszergazdak chimpanzini
+
+en
+conf t
+vtp domain crimson
+vtp mode server
+vtp password crimson
+hostname SWI_Rendszergazdak
+vlan 10
+name Piheno
+exit
+vlan 20
+name Rendszergazdak
+exit
+vlan 30
+name Iroda1
+exit
+vlan 40
+name Iroda2
+exit
+interface fa0/24                  
+switchport mode trunk
+switchport trunk allowed vlan 10,20,30,40
+no shutdown
+exit
+in ra fa0/1 - fa0/5
+switchport mode access
+switchport access vlan 20
+spanning-tree portfast
+no shutdown
+exit
+interface fa0/22
+swi mo tru
+switchport trunk allowed vlan 10,20,30,40
+no shutdown
+exit
+interface fa0/23
+swi mo acc
+switchport access vlan 20
+spanning-tree portfast
+no shutdown
+in ra fa0/6-21
+shutdown
+exit
+
+
+---------------------------------------------------
+SWI_Iroda1 brr brr patapim
+
+en
+conf t
+hostname SWI_Iroda1
+vlan 10
+name Piheno
+exit
+vlan 20
+name Rendszergazdak
+exit
+vlan 30
+name Iroda1
+exit
+vlan 40
+name Iroda2
+exit
+interface fa0/24
+switchport mode trunk
+switchport trunk allowed vlan 10,20,30,40
+no shutdown
+exit
+in ra fa0/1 - fa0/21
+switchport mode access
+switchport access vlan 30
+spanning-tree portfast
+no shutdown
+exit
+interface Port-channel1
+switchport mode trunk
+switchport trunk allowed vlan 10,20,30,40
+in ra fa0/22 - fa0/23
+channel-group 1 mode active
+switchport mode trunk
+switchport trunk allowed vlan 10,20,30,40
+no shutdown
+exit
+
+--------------------------------------------------------
+SWI_Iroda2 capucino
+
+en
+conf t
+hostname SWI_Iroda2
+vlan 10
+name Piheno
+exit
+vlan 20
+name Rendszergazdak
+exit
+vlan 30
+name Iroda1
+exit
+vlan 40
+name Iroda2
+exit
+in ra fa0/1 - fa0/21
+switchport mode access
+switchport access vlan 40
+spanning-tree portfast
+no shutdown
+exit
+interface Port-channel1
+switchport mode trunk
+switchport trunk allowed vlan 10,20,30,40
+in ra fa0/22 - fa0/23
+channel-group 1 mode active
+switchport mode trunk
+switchport trunk allowed vlan 10,20,30,40
+no shutdown
+exit
+
+------------------------------------------------
+IrodaRouter tralalero
+
+en
+conf t
+hostname IrodaRouter
+interface GigabitEthernet0/0/0.20
+en dot1Q 20
+ip address 10.1.2.4 255.255.255.0
+standby version 2
+standby 1 ip 10.1.2.1
+standby 1 priority 100
+standby 1 preempt
+no shutdown
+exit
+interface GigabitEthernet0/0/1
+ip address 192.168.100.1 255.255.255.0
+no shutdown
+exit
+interface GigabitEthernet0/0/2            
+no shutdown
+exit
+interface GigabitEthernet0/0/0           
+no shutdown
+exit
+interface GigabitEthernet0/0/2.30       
+encapsulation dot1Q 30
+ip address 10.1.3.1 255.255.255.0
+ip helper-address 10.1.2.3
+no shutdown 
+exit
+interface GigabitEthernet0/0/2.40
+encapsulation dot1Q 40
+ip address 10.1.4.1 255.255.255.0
+ip helper-address 10.1.2.3
+no shutdown
+exit
+
+ip route 0.0.0.0 0.0.0.0 192.168.100.2
+
+router ospf 1
+router-id 1.1.1.1
+network 10.1.2.0 0.0.0.255 area 0
+network 10.1.3.0 0.0.0.255 area 0
+network 10.1.4.0 0.0.0.255 area 0
+network 192.168.100.0 0.0.0.255 area 0
+passive-interface gig0/0/2.30
+passive-interface gig0/0/2.40
+
+--------------------------------------
+FoRouter bombardiro
+
+en
+conf t
+hostname FoRouter
+interface GigabitEthernet6/0     
+no shutdown
+exit
+interface GigabitEthernet7/0     
+no shutdown
+exit
+interface GigabitEthernet6/0.10    
+encapsulation dot1Q 10
+ip address 10.1.1.1 255.255.255.0
+ip helper-address 10.1.2.3
+ip access-group VLAN10_OUT out 
+no shutdown 
+exit
+interface GigabitEthernet7/0.20      
+encapsulation dot1Q 20
+ip address 10.1.2.2 255.255.255.0
+standby version 2
+standby 1 ip 10.1.2.1
+standby 1 priority 120
+standby 1 preempt
+no shutdown
+exit
+interface GigabitEthernet9/0    
+ip address 192.168.200.1 255.255.255.0
+no shutdown
+exit
+
+ip route 0.0.0.0 0.0.0.0 192.168.200.2
+
+router ospf 1
+router-id 2.2.2.2
+network 10.1.1.0 0.0.0.255 area 0
+network 10.1.2.0 0.0.0.255 area 0
+network 192.168.200.0 0.0.0.255 area 0
+passive-interface gig6/0
+passive-interface gig7/0
+
+
+ip access-list extended VLAN10_OUT
+permit udp any eq 68 host 10.1.2.3 eq 67
+permit udp host 10.1.2.3 eq 67 any eq 68
+permit udp 10.1.1.0 0.0.0.255 host 10.1.2.3 eq 53
+permit udp host 10.1.2.3 eq 53 10.1.1.0 0.0.0.255
+permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.3 eq 53
+permit tcp host 10.1.2.3 eq 53 10.1.1.0 0.0.0.255
+deny ip 10.1.1.0 0.0.0.255 10.0.0.0 0.255.255.255
+permit ip 10.1.1.0 0.0.0.255 any
+exit
+
+--------------------------------------
+BorderRouter tung tung
+
+en
+conf t
+hostname BorderRouter
+interface GigabitEthernet0/0/0           
+ip address 192.168.100.2 255.255.255.0
+ip nat inside
+no shutdown 
+exit
+interface GigabitEthernet0/0/1            
+ip address 192.168.200.2 255.255.255.0
+ip nat inside
+no shutdown
+exit
+interface GigabitEthernet0/0/2               
+ip address 67.67.1.2 255.255.255.0
+ip nat outside
+no shutdown
+exit
+
+ip route 0.0.0.0 0.0.0.0 67.67.1.1
+
+interface Tunnel1
+ip address 192.168.67.1 255.255.255.252
+tunnel source GigabitEthernet0/0/2
+tunnel destination 67.67.2.2
+
+crypto isakmp policy 10
+encryption aes
+hash sha
+authentication pre-share
+group 2
+
+crypto isakmp key cisco address 67.67.2.2
+
+crypto ipsec transform-set TS esp-aes esp-sha-hmac
+
+crypto map VPN 10 ipsec-isakmp
+set peer 67.67.2.2
+set transform-set TS
+match address 110
+
+interface GigabitEthernet0/0/2
+crypto map VPN
+
+
+ip nat inside source static 10.1.2.3 50.50.50.25
+ip nat pool CLIENTS_POOL 67.67.1.100 67.67.1.220 netmask 255.255.255.0
+
+access-list 10 permit 10.1.1.0 0.0.0.255
+access-list 10 permit 10.1.2.0 0.0.0.255
+access-list 10 permit 10.1.3.0 0.0.0.255
+access-list 10 permit 10.1.4.0 0.0.0.255
+
+ip nat inside source list 10 pool CLIENTS_POOL
+
+access-list 110 permit ip 10.1.0.0 0.0.255.255 192.168.67.0 0.0.0.3
+access-list 110 permit ip 10.1.0.0 0.0.255.255 10.2.1.0 0.0.0.255
+access-list 110 permit ip 10.1.0.0 0.0.255.255 10.2.2.0 0.0.0.255
+access-list 110 permit ip 192.168.100.0 0.0.0.255 any
+access-list 110 permit ip 192.168.200.0 0.0.0.255 any
+
+ip nat inside source list 110 interface GigabitEthernet0/0/2 overload
+
+router ospf 1
+router-id 3.3.3.3
+network 192.168.100.0 0.0.0.255 area 0
+network 192.168.200.0 0.0.0.255 area 0
+network 192.168.67.0 0.0.0.3 area 0
+
+-----------------------------------------------
+ISP
+
+en
+conf t
+hostname ISP
+int gig6/0                                 
+ip address 67.67.1.1 255.255.255.0
+no shu
+exit
+int gig7/0                                  
+ip address 67.67.2.1 255.255.255.0
+no shu
+exit
+int gig8/0                                  
+ip address 67.67.3.1 255.255.255.0
+no shu
+exit
+int gig9/0                                  
+ip address 67.67.4.1 255.255.255.0
+no shu
+exit
+
+
+
+
+---------------------------------------------------
+GyorRouter
+
+en
+conf t
+hostname GyorRouter                                                                                                                                         
+int gig9/0                              
+ip address 67.67.69.2 255.255.255.0
+no shu
+exit
+int gig7/0                                
+ip address 10.3.2.1 255.255.255.0
+no shu
+exit
+int gig6/0                                
+ip address 10.3.3.1 255.255.255.0
+no shu
+exit
+int gig8/0                                
+ip address 192.168.3.1 255.255.255.0
+no shu
+exit
+router ospf 1
+router-id 5.5.5.5
+network 67.67.69.0 0.0.0.255 area 0
+network 10.3.2.0 0.0.0.255 area 0
+network 10.3.3.0 0.0.0.255 area 0
+network 192.168.3.0 0.0.0.255 area 0
+
+--------------------------------------------------------
+GyorRouterRaktar
+
+en
+conf t
+hostname GyorRouterRaktar                                                                                                                                       
+int gig0/0/1                               
+ip address 10.3.1.1 255.255.255.0
+no shu
+exit
+int gig0/0/0                                
+ip address 192.168.3.2 255.255.255.0
+no shu
+exit
+router ospf 1
+router-id 6.6.6.6
+network 10.3.1.0 0.0.0.255 area 0
+network 192.168.3.0 0.0.0.255 area 0
+
+----------------------------------------------------------
+ASA
+
+enable
+configure terminal
+
+
+interface gig0/0/0
+ip address 67.67.3.2 255.255.255.0
+ip access-group 101 in
+no shutdown
+exit
+
+
+interface gig0/0/1
+ip address 192.168.69.1 255.255.255.0
+no shutdown
+exit
+
+access-list 101 deny icmp any 10.3.0.0 0.0.255.255
+access-list 101 deny icmp any 192.168.0.0 0.0.255.255
+access-list 101 permit ip any any
+
+ip route 0.0.0.0 0.0.0.0 67.67.3.1
+
+
+-------------------------------------
+
+NAT routeren
+
+ip route 0.0.0.0 0.0.0.0 67.67.67.10
+access-list 1 permit 10.1.0.0 0.0.255.255
+ip nat inside source list 1 interface gig0/0/0 overload
+interface GigabitEthernet0/0/0
+ip nat outside
+exit
+interface GigabitEthernet0/0/2
+ip nat inside
+exit
+
+en
+conf t
+clear ip nat translation
+no access-list 1 permit 10.1.0.0 0.0.255.255
+no ip nat inside source list 1 interface gig0/0/0 overload
+interface GigabitEthernet0/0/0
+no ip nat outside
+exit
+interface GigabitEthernet0/0/2
+no ip nat inside
+exit
+
+
+------------------------------------------------
+
+
+ASA
+
+
+interface GigabitEthernet1/2
+nameif outside
+security-level 0
+exit
+route outside 0.0.0.0 0.0.0.0 67.67.67.10
+
+object network INSIDE-NET
+subnet 10.1.0.0 255.255.0.0     
+description Belső hálózat NAT-hoz
+exit
+object network INSIDE-NET
+nat (inside,outside) dynamic interface
+exit
+
+policy-map global_policy
+class inspection_default
+inspect icmp
+exit
+icmp permit any inside
+icmp permit any outside
+exit
+
+
+--------------------------------------------------------------------------
+
+
+ISP
+67.67.67.10
+
+
+--------------------------------------------------------------------------
+AradFo
+
+en
+conf t
+hostname AradFo
+
+interface GigabitEthernet 0/0/2
+ip address 67.67.2.2 255.255.255.0    
+no shutdown
+exit
+
+interface GigabitEthernet 0/0/0    
+ip address 192.168.2.1 255.255.255.0
+no shutdown
+exit
+
+interface GigabitEthernet 0/0/1
+ip address 192.168.20.1 255.255.255.0
+no shutdown 
+exit
+
+ip route 0.0.0.0 0.0.0.0 67.67.2.1
+
+interface Tunnel1
+ip address 192.168.67.2 255.255.255.252
+tunnel source GigabitEthernet0/0/2
+tunnel destination 67.67.1.2
+
+access-list 100 permit gre host 67.67.1.2 host 67.67.2.2
+
+crypto isakmp policy 10
+ encryption aes
+ hash sha
+ authentication pre-share
+ group 2
+
+crypto isakmp key cisco address 67.67.1.2
+
+crypto ipsec transform-set TS esp-aes esp-sha-hmac
+
+crypto map VPN 10 ipsec-isakmp
+set peer 67.67.1.2
+set transform-set TS
+match address 100
+
+interface GigabitEthernet0/0/2
+crypto map VPN
+
+
+router ospf 1
+router-id 7.7.7.7
+network 192.168.2.0 0.0.0.255 area 0
+network 192.168.20.0 0.0.0.255 area 0
+network 192.168.67.0 0.0.0.3 area 0
+
+--------------------------------------------------------------------------
+AradServerRouter
+
+en
+conf t
+hostname AradServerRouter
+interface GigabitEthernet6/0     
+ip address 192.168.2.2 255.255.255.0
+no shutdown
+exit
+
+interface GigabitEthernet7/0     
+no shutdown
+exit
+interface GigabitEthernet8/0     
+no shutdown
+exit
+
+interface GigabitEthernet7/0.10      
+encapsulation dot1Q 10
+ip address 10.2.1.2 255.255.255.0
+standby version 2
+standby 1 ip 10.2.1.1
+standby 1 priority 120
+standby 1 preempt
+no shutdown
+exit
+
+interface GigabitEthernet8/0.20    
+encapsulation dot1Q 20
+ip address 10.2.2.3 255.255.255.0
+standby version 2
+standby 2 ip 10.2.2.1
+standby 2 priority 100
+standby 2 preempt
+no shutdown
+exit
+
+router ospf 1
+router-id 8.8.8.8
+network 10.2.1.0 0.0.0.255 area 0
+network 10.2.2.0 0.0.0.255 area 0
+network 192.168.2.0 0.0.0.255 area 0
+
+----------------------------------------------------
+AradRaktar
+
+en
+conf t
+hostname AradRaktar
+interface GigabitEthernet6/0     
+ip address 192.168.20.2 255.255.255.0
+no shutdown
+exit
+
+interface GigabitEthernet7/0     
+no shutdown
+exit
+interface GigabitEthernet8/0     
+no shutdown
+exit
+
+interface GigabitEthernet7/0.20    
+encapsulation dot1Q 20
+ip address 10.2.2.2 255.255.255.0
+standby version 2
+standby 2 ip 10.2.2.1
+standby 2 priority 120
+standby 2 preempt
+no shutdown
+exit
+
+interface GigabitEthernet8/0.10   
+encapsulation dot1Q 10
+ip address 10.2.1.3 255.255.255.0
+standby version 2
+standby 1 ip 10.2.1.1
+standby 1 priority 100
+standby 1 preempt
+no shutdown
+exit
+
+router ospf 1
+router-id 9.9.9.9
+network 10.2.1.0 0.0.0.255 area 0
+network 10.2.2.0 0.0.0.255 area 0
+network 192.168.20.0 0.0.0.255 area 0
+
+------------------------------------------------
+AradSwitchServer
+
+en
+conf t
+hostname AradSwitchServer
+vlan 10
+name Rendszergazdak
+exit
+
+interface ra fa0/23-24
+switchport mode trunk
+switchport trunk allowed vlan 10
+no shutdown
+exit
+
+in ra fa0/1 - fa0/21
+switchport mode access
+switchport access vlan 10
+spanning-tree portfast
+no shutdown
+exit
+
+-----------------------------------------------------
+AradSwitchRaktar
+
+en
+conf t
+hostname AradSwitchRaktar
+vlan 20
+name Raktar
+exit
+
+interface ra fa0/23-24
+switchport mode trunk
+switchport trunk allowed vlan 20
+no shutdown
+exit
+
+in ra fa0/1 - fa0/21
+switchport mode access
+switchport access vlan 20
+spanning-tree portfast
+no shutdown
+exit
+
+----------------------------------------------------
+WroclawFoRouter
+
+en
+conf t
+hostname WroclawFoRouter
+ipv6 unicast-routing
+
+interface GigabitEthernet 0/0/2
+ip address 67.67.70.2 255.255.255.0    
+no shutdown
+exit
+
+interface GigabitEthernet 0/0/0    
+ip address 192.168.4.1 255.255.255.0
+ipv6 address 2001:db8:40:1::1/64 
+no shutdown
+exit
+
+interface GigabitEthernet 0/0/1
+ip address 192.168.40.1 255.255.255.0
+ipv6 address 2001:db8:44:1::1/64 
+no shutdown 
+exit
+
+router ospf 1
+router-id 10.10.10.10
+network 67.67.70.0 0.0.0.255 area 0
+network 192.168.4.0 0.0.0.255 area 0
+network 192.168.40.0 0.0.0.255 area 0
+
+ipv6 router ospf 1
+router-id 10.10.10.10
+interface Gig0/0/0
+ipv6 ospf 1 area 0
+interface Gig0/0/1
+ipv6 ospf 1 area 0
+
+------------------------------------------------------
+WroclawServerR
+
+en
+conf t
+hostname WroclawServerR
+ipv6 unicast-routing
+
+interface GigabitEthernet 0/0/0    
+ip address 192.168.4.2 255.255.255.0
+ipv6 address 2001:db8:40:1::2/64 
+no shutdown
+exit
+
+interface GigabitEthernet 0/0/2
+no shutdown
+exit
+
+interface GigabitEthernet 0/0/2.10
+en dot1Q 10
+ip address 10.4.1.2 255.255.255.0
+standby version 2
+standby 1 ip 10.4.1.1
+standby 1 priority 120
+standby 1 preempt
+ipv6 address 2001:db8:4:1::1/64
+standby 10 ipv6 autoconfig
+no shutdown
+exit
+
+interface GigabitEthernet 0/0/2.20
+en dot1Q 20
+ip address 10.4.2.2 255.255.255.0
+standby version 2
+standby 2 ip 10.4.2.1
+standby 2 priority 100
+standby 2 preempt
+ipv6 address 2001:db8:4:2::2/64
+standby 20 ipv6 autoconfig
+no shutdown
+exit
+
+router ospf 1
+router-id 11.11.11.11
+network 192.168.4.0 0.0.0.255 area 0
+network 10.4.1.0 0.0.0.255 area 0
+network 10.4.2.0 0.0.0.255 area 0
+
+ipv6 router ospf 1
+router-id 11.11.11.11
+interface Gig0/0/2.10
+ipv6 ospf 1 area 0
+interface Gig0/0/2.20
+ipv6 ospf 1 area 0
+interface Gig0/0/0
+ipv6 ospf 1 area 0
+
+-------------------------------------------------
+WroclawIrodaR
+
+en
+conf t
+hostname WroclawIrodaR
+ipv6 unicast-routing
+
+interface GigabitEthernet 0/0/0    
+ip address 192.168.40.2 255.255.255.0 
+ipv6 address 2001:db8:44:1::2/64 
+no ip redirects
+no ip proxy-arp
+no shutdown
+exit
+
+interface GigabitEthernet 0/0/2
+ip address 10.4.3.1 255.255.255.0
+ipv6 address 2001:db8:4:3::1/64
+ipv6 nd other-config-flag
+no ip redirects
+no ip proxy-arp
+no shutdown
+exit
+
+interface GigabitEthernet 0/0/1
+no ip redirects
+no shutdown
+exit
+
+interface GigabitEthernet 0/0/1.10
+en dot1Q 10
+ip address 10.4.1.3 255.255.255.0
+standby version 2
+standby 1 ip 10.4.1.1
+standby 1 priority 100
+standby 1 preempt
+ipv6 address 2001:db8:4:1::2/64
+standby 10 ipv6 autoconfig
+no ip proxy-arp
+no shutdown
+exit
+
+interface GigabitEthernet 0/0/1.20
+en dot1Q 20
+ip address 10.4.2.3 255.255.255.0
+standby version 2
+standby 2 ip 10.4.2.1
+standby 2 priority 120
+standby 2 preempt  
+ipv6 address 2001:db8:4:2::1/64
+standby 20 ipv6 autoconfig
+no ip proxy-arp
+no shutdown
+exit
+
+router ospf 1
+router-id 12.12.12.12
+network 192.168.40.0 0.0.0.255 area 0
+network 10.4.1.0 0.0.0.255 area 0
+network 10.4.2.0 0.0.0.255 area 0
+network 10.4.3.0 0.0.0.255 area 0
+
+ipv6 router ospf 1
+router-id 12.12.12.12
+interface Gig0/0/1.10
+ipv6 ospf 1 area 0
+interface Gig0/0/1.20
+ipv6 ospf 1 area 0
+interface Gig0/0/0
+ipv6 ospf 1 area 0
+interface Gig0/0/2
+ipv6 ospf 1 area 0
+
+-------------------------------------------------
+WroclawServerSwi
+
+en
+conf t
+hostname WroclawServerSwi
+vlan 10
+name Server
+exit
+
+in ra fa0/1 - fa0/19
+switchport mode access
+switchport access vlan 10
+spanning-tree portfast
+no shutdown
+exit
+
+in ra fa0/22 - fa0/24
+switchport mode access
+switchport access vlan 10
+spanning-tree portfast
+no shutdown
+exit
+
+in ra fa0/20 - fa0/21
+channel-group 1 mode active
+switchport mode trunk
+switchport trunk allowed vlan 10,20
+no shutdown
+exit
+
+----------------------------------------------------
+WroclawFoSwi
+
+en
+conf t
+hostname WroclawFoSwi
+vlan 10
+name Server
+exit
+vlan 20
+name Iroda
+exit
+
+ip dhcp snooping
+ip dhcp snooping vlan 10,20
+ip arp inspection vlan 10,20
+
+in ra fa0/1 - fa0/19
+switchport mode access
+switchport access vlan 20
+spanning-tree portfast
+switchport port-security
+switchport port-security maximum 1
+switchport port-security violation shutdown
+switchport port-security mac-address sticky
+spanning-tree bpduguard enable
+no shutdown
+exit
+
+in ra fa0/23 - fa0/24
+swi mo tru
+swi tru all vlan 10,20
+ip dhcp snooping trust
+no shutdown
+exit
+
+in ra fa0/20 - fa0/21
+channel-group 1 mode active
+switchport mode trunk
+switchport trunk allowed vlan 10,20
+no shutdown
+exit
+
+------------------------------------------------
+WroclawRaktarSwi 
+
+
+en
+conf t
+hostname WroclawRaktarSwi
+vlan 30
+name Raktar
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ipv4 unicast-routing
+ipv6 unicast-routing
+
+! Link to Router1
+interface Gi0/0
+ ip address 192.168.1.1 255.255.255.252
+ ipv6 address 2001:db8:ff01::1/64
+ no shutdown
+
+! Link to Router2
+interface Gi0/1
+ ip address 192.168.1.5 255.255.255.252
+ ipv6 address 2001:db8:ff02::1/64
+ no shutdown
+
+! OSPFv2
+router ospf 1
+ router-id 3.3.3.3
+ network 192.168.1.0 0.0.0.3 area 0
+ network 192.168.1.4 0.0.0.3 area 0
+
+! OSPFv3
+ipv6 router ospf 1
+ router-id 3.3.3.3
+interface Gi0/0
+ ipv6 ospf 1 area 0
+interface Gi0/1
+ ipv6 ospf 1 area 0
+
+
+
+
+
+
+
+
+2001:db8:4:1:201:97ff:fe13:5a59
+
+
+
+----------------------------------------------------------------------
+
+
+
+
+ switchport port-security
+ switchport port-security maximum 1
+ switchport port-security violation shutdown
+ switchport port-security mac-address sticky
+ spanning-tree bpduguard enable
+
+
+
+ip dhcp snooping
+ip dhcp snooping vlan 10
+
+interface range FastEthernet0/1-24
+ip dhcp snooping trust no ! felhasználói portok untrusted
+exit
+
+interface FastEthernet0/0
+ip dhcp snooping trust yes ! router felé trusted port
+exit
+
+ip arp inspection vlan 10 ! ARP spoofing ellen
+
+-------------------------------------------------------------
+
+ROUTER – Layer 3 security (L3)
+
+interface GigabitEthernet0/0
+description LAN Interface
+ip address 192.168.10.1 255.255.255.0
+no ip redirects ! ICMP redirect tiltás
+no ip proxy-arp ! Proxy ARP tiltás
+exit
+
+interface GigabitEthernet0/1
+description WAN / Internet
+ip address 203.0.113.1 255.255.255.252
+no ip redirects
+no ip proxy-arp
+exit
+
+ip access-list extended LAN_INBOUND
+permit ip 192.168.10.0 0.0.0.255 any
+deny ip any any
+exit
+
+interface GigabitEthernet0/0
+ip access-group LAN_INBOUND in
+exit
+
+ip dhcp snooping
+ip dhcp snooping vlan 10
+
+interface GigabitEthernet0/0
+ip dhcp snooping trust ! LAN felé trusted, engedi DHCP szerver üzeneteit
+exit
+
+ip arp inspection vlan 10 ! ARP spoofing ellen
+
+username admin privilege 15 secret YOUR_SECURE_PASSWORD
+line vty 0 4
+transport input ssh ! csak SSH
+login local
+exit
+
+
+
+
+
+
