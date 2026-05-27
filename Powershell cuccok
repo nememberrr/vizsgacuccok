@@ -1,4 +1,184 @@
-**Windows Server 2022 PowerShell Cheat Sheet (nagyon részletes)**
+Windows Server 2022 PowerShell
+
+Íme a jelentősen kibővített verzió. A **6. és 7. részt** különösen részletes magyarázatokkal láttam el, hogy ne csak a parancsokat lásd, hanem **miért, hogyan és mikor** használd őket.
+
+---
+
+### 6. Active Directory – Részletes Magyarázat
+
+Az **Active Directory PowerShell modul** (ActiveDirectory) lehetővé teszi a domain objektumok (felhasználók, csoportok, számítógépek, OU-k stb.) központi kezelését szkriptekkel. Ez sokkal hatékonyabb, mint a grafikus AD Users and Computers eszköz, különösen nagyobb környezetekben vagy ismétlődő feladatoknál.
+
+#### Modul telepítése és betöltése
+```powershell
+# Egyszeri telepítés (ha nem Domain Controller)
+Install-WindowsFeature RSAT-AD-PowerShell -IncludeManagementTools
+
+# Betöltés (általában automatikus)
+Import-Module ActiveDirectory
+```
+**Magyarázat**: A RSAT modul nélkül nem fogod tudni használni az AD parancsokat nem-DC gépeken. Telepítés után a parancsok azonnal elérhetővé válnak.
+
+#### Általános domain információk
+```powershell
+Get-ADDomain
+Get-ADForest
+Get-ADDomainController -Filter * | Select Hostname, Site, OperatingSystem, IPv4Address
+```
+**Magyarázat**: Ezekkel a parancsokkal gyorsan átlátod a domain struktúrát, mely domain controllerek vannak, milyen site-okban, és milyen verziójúak. Hasznos hibakeresésnél és tervezésnél.
+
+#### Felhasználók kezelése (Users)
+```powershell
+# Lekérdezés – magyarázat:
+# -Identity: konkrét felhasználó
+# -Filter: szűrés (pl. csak aktívak)
+# -Properties *: minden tulajdonságot kihoz (alapból csak néhányat ad vissza)
+Get-ADUser -Identity "pkiss" -Properties *
+Get-ADUser -Filter {Enabled -eq $true} -SearchBase "OU=Budapest,DC=contoso,DC=com" |
+    Select Name, SamAccountName, Title, Department, LastLogonDate, PasswordLastSet
+```
+
+**Új felhasználó létrehozása (részletes)**
+```powershell
+$jelszo = ConvertTo-SecureString "Jelszo123!" -AsPlainText -Force
+
+New-ADUser -Name "Nagy Anna" `
+           -GivenName "Anna" `
+           -Surname "Nagy" `
+           -SamAccountName "anagy" `
+           -UserPrincipalName "anagy@contoso.com" `
+           -Path "OU=Users,OU=Budapest,DC=contoso,DC=com" `
+           -AccountPassword $jelszo `
+           -Enabled $true `
+           -ChangePasswordAtLogon $true `
+           -Title "Pénzügyi Asszisztens" `
+           -Department "Pénzügy" `
+           -Company "Contoso Kft." `
+           -EmailAddress "anagy@contoso.com" `
+           -MobilePhone "+36301234567"
+```
+**Magyarázat**: A `ConvertTo-SecureString` azért kell, mert a jelszót biztonságosan kell átadni. A `-Path` paraméterrel megadod, mely OU-ba kerüljön. A `-ChangePasswordAtLogon $true` kényszeríti az első bejelentkezéskor a jelszóváltást (biztonsági best practice).
+
+**Tömeges felhasználó létrehozása CSV-ből** (nagyon hasznos!)
+```powershell
+Import-Csv C:\ujfelhasznalok.csv | ForEach-Object {
+    $pass = ConvertTo-SecureString $_.Password -AsPlainText -Force
+    New-ADUser -Name $_.FullName `
+               -SamAccountName $_.Username `
+               -UserPrincipalName "$($_.Username)@contoso.com" `
+               -Path $_.OU `
+               -AccountPassword $pass `
+               -Enabled $true `
+               -ChangePasswordAtLogon $true
+}
+```
+**Magyarázat**: CSV importtal több száz felhasználót is létrehozhatsz percek alatt. A CSV fájlban legyenek oszlopok: FullName, Username, Password, OU.
+
+#### Csoportok kezelése (Groups)
+```powershell
+New-ADGroup -Name "Penzugy-Admins" -GroupScope Global -GroupCategory Security -Path "OU=Groups,DC=contoso,DC=com"
+
+Add-ADGroupMember -Identity "Penzugy-Admins" -Members "anagy","pkiss"
+Get-ADGroupMember -Identity "Penzugy-Admins" -Recursive   # beágyazott csoportokkal együtt
+```
+**Magyarázat**: A `Global` scope általában belső használatra jó, a `Universal` nagyobb erdőkben. A `-Recursive` kapcsolóval látod, ki van a csoportban közvetve is.
+
+#### Számítógépek és OU-k
+```powershell
+Get-ADComputer -Filter * -Properties * | Select Name, OperatingSystem, LastLogonDate
+Move-ADObject -Identity "CN=PC-001,OU=Computers,DC=contoso,DC=com" -TargetPath "OU=Budapest,DC=contoso,DC=com"
+```
+**Magyarázat**: `Move-ADObject` nagyon hasznos szervezeti átszervezésnél.
+
+---
+
+### 7. Szerver Szerepkörök és Features – Részletes Magyarázat
+
+A Windows Feature-ök és szerepkörök telepítése PowerShell-lel gyorsabb és automatizálható, mint a Server Manageren keresztül.
+
+#### Features kezelése
+```powershell
+Get-WindowsFeature | Where-Object InstallState -eq "Available" | Sort Name | Format-Table
+Install-WindowsFeature Web-Server,Web-Asp-Net45 -IncludeManagementTools -Restart
+```
+**Magyarázat**: A `-IncludeManagementTools` nélkül csak a szolgáltatás települ, de a kezelőeszközök (konzolok) nem. A `-Restart` automatikusan újraindítja a szervert, ha szükséges.
+
+#### Hyper-V – Részletes
+```powershell
+# Telepítés
+Install-WindowsFeature Hyper-V -IncludeManagementTools -Restart
+
+# VM létrehozása – magyarázat:
+# Generation 2 = modernebb (UEFI, Secure Boot)
+New-VM -Name "Prod-SRV01" `
+       -MemoryStartupBytes 8GB `
+       -NewVHDPath "D:\Hyper-V\Prod-SRV01.vhdx" `
+       -NewVHDSizeBytes 150GB `
+       -Generation 2 `
+       -SwitchName "Production"
+
+# Erőforrás optimalizálás
+Set-VM -Name "Prod-SRV01" -ProcessorCount 6 -DynamicMemory:$true -MemoryMinimumBytes 4GB -MemoryMaximumBytes 16GB
+```
+**Magyarázat**: A Dynamic Memory lehetővé teszi, hogy a VM csak annyi memóriát használjon, amennyire valóban szüksége van. Nagyon fontos erőforrás-hatékony környezetekben.
+
+#### IIS (Web Server) – Részletes
+```powershell
+Install-WindowsFeature Web-Server -IncludeManagementTools
+
+Import-Module WebAdministration
+
+# Weboldal létrehozása
+New-IISSite -Name "CegWeb" `
+            -BindingInformation "*:80:www.contoso.com" `
+            -PhysicalPath "C:\inetpub\wwwroot\CegWeb"
+
+# Application Pool (külön folyamat a stabilitásért)
+New-WebAppPool -Name "CegWebPool"
+Set-ItemProperty IIS:\AppPools\CegWebPool managedRuntimeVersion v4.0
+Set-ItemProperty IIS:\AppPools\CegWebPool enable32BitAppOnWin64 $false
+
+# Alkalmazás (Application) létrehozása
+New-WebApplication -Name "api" -Site "CegWeb" -PhysicalPath "C:\inetpub\wwwroot\CegWeb\api" -ApplicationPool "CegWebPool"
+```
+**Magyarázat**: Az Application Pool különválasztja az alkalmazásokat, így ha egy lefagy, nem viszi magával a többit. Ajánlott minden weboldalnak saját pool-t adni.
+
+---
+
+**Általános PowerShell Tippek a Szerverkezeléshez**
+
+- **WhatIf tesztelés**: `Install-WindowsFeature ... -WhatIf`
+- **Hibakezelés**: 
+  ```powershell
+  Try { New-ADUser ... } Catch { Write-Host "Hiba: $($_.Exception.Message)" -ForegroundColor Red }
+  ```
+- **Logolás**: `Start-Transcript C:\Logs\$(Get-Date -Format yyyyMMdd_HHmm).txt`
+
+Szeretnéd, hogy még mélyebben kifejtsem valamelyik részt?  
+Például:
+- Teljes tömeges felhasználó-import szkript magyarázattal
+- Hyper-V clustering / live migration
+- IIS SSL tanúsítvány automatikus beállítása
+- GPO kezelés PowerShell-lel
+
+Mondd meg, melyik részt dolgozzuk ki még részletesebben!
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+**Windows Server 2022 PowerShell Cheat Sheet**
 
 Windows Server 2022-ben alapból **PowerShell 5.1** van telepítve (Windows PowerShell). Ajánlott a **PowerShell 7+** telepítése a jobb teljesítmény és kompatibilitás miatt, de sok szerver-szerepkör (AD, Hyper-V, IIS) még a 5.1-es modulokra épül.
 
