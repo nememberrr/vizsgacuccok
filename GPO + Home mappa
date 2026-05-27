@@ -1,0 +1,311 @@
+Windows Server 2022 – Group Policy
+
+### 1. Group Policy Management Console (GPMC) Megnyitása
+1. **Server Manager** → **Tools** → **Group Policy Management**
+2. Vagy futtasd: `gpmc.msc`
+
+**Fastruktúra**:
+- Forest → Domains → [Tartomány] → 
+  - **Group Policy Objects** (itt vannak a GPO-k)
+  - Domain, OU-k, Sites
+
+---
+
+### 2. Új GPO Létrehozása és Linkelése (GUI Lépések)
+
+**Új GPO létrehozása**:
+1. **Group Policy Objects** mappára jobb klikk → **New**
+2. Név: pl. `IT-Security-Policy` → OK
+3. **Megjegyzés** (Comment) hozzáadása erősen ajánlott: jobb klikk a GPO-ra → **Edit** → jobb klikk a GPO nevére (legfelül) → **Properties** → **Comment** fül
+
+**GPO Linkelése**:
+1. Az OU-ra vagy Domain-re jobb klikk → **Link an Existing GPO**
+2. Válaszd ki a GPO-t
+
+**Link törlése** (nem a GPO törlése!): jobb klikk a linkre → **Delete** (csak a linket törli)
+
+**Enforcement (Kényszerítés)**: jobb klikk a linken → **Enforced** (felülírja az öröklődést)
+
+---
+
+### 3. GPO Szerkesztése (Group Policy Editor)
+
+Jobb klikk a GPO-ra → **Edit**
+
+**Két fő ág**:
+- **Computer Configuration** (számítógépekre vonatkozik, boot-kor)
+- **User Configuration** (felhasználókra vonatkozik, bejelentkezéskor)
+
+**Fontos szabály**: Computer beállítások erősebbek, ha ütközés van.
+
+---
+
+### 4. Gyakori és Ajánlott GPO Beállítások (2022)
+
+#### **Computer Configuration → Policies → Windows Settings → Security Settings**
+
+**Account Policies** (csak Domain szinten érvényesül jól):
+- **Password Policy**:
+  - Enforce password history: **24**
+  - Maximum password age: **90** nap
+  - Minimum password age: **1** nap
+  - Minimum password length: **14**
+  - Password must meet complexity requirements: **Enabled**
+  - Store passwords using reversible encryption: **Disabled**
+
+- **Account Lockout Policy**:
+  - Account lockout threshold: **5** invalid attempt
+  - Account lockout duration: **15** perc
+  - Reset account lockout counter: **15** perc
+
+**Local Policies → Security Options** (Hardening):
+- **Accounts: Guest account status**: Disabled
+- **Interactive logon: Do not display last user name**: Enabled
+- **Interactive logon: Machine inactivity limit**: 900 (15 perc)
+- **User Account Control** (UAC) beállítások:
+  - User Account Control: Run all administrators in Admin Approval Mode → Enabled
+  - User Account Control: Behavior of the elevation prompt for standard users → Automatically deny elevation requests
+- **Microsoft Network Client/Server: Digitally sign communications** (always) → Enabled (SMB Signing)
+
+**Local Policies → User Rights Assignment** (Fontos jogok):
+- **Allow log on locally**: Administrators, Users
+- **Allow log on through Remote Desktop Services**: RD Users (biztonságos csoport)
+- **Deny log on locally**: Guests
+- **Deny log on through Remote Desktop Services**: Everyone (kivéve RD Users)
+- **Shut down the system**: Administrators csak
+
+**Audit Policy** (ajánlott):
+- Audit account logon events, logon events, object access, policy change, privilege use stb. → Success and Failure
+
+#### **Administrative Templates (ADMX)**
+
+**System**:
+- **Ctrl+Alt+Del options**: Remove Task Manager → Enabled (opcionális)
+- **Logon**: Do not display the password reveal button → Enabled
+
+**Windows Components**:
+- **Windows Defender Antivirus** → sok beállítás (real-time protection stb.)
+- **Windows Update**:
+  - Manage end user experience → Configure Automatic Updates → 4 (Auto download and schedule)
+- **Internet Explorer / Edge** beállítások
+- **OneDrive**: Prevent the usage of OneDrive for file storage → Enabled (cégekben gyakran)
+
+**Control Panel**:
+- **Prohibit access to Control Panel and PC settings**: Enabled
+- **Hide specified Control Panel items**
+
+**Start Menu and Taskbar**:
+- **Remove Run command**, **Remove Shut Down...** stb.
+
+**Network**:
+- **Network Provider**: Hardened UNC Paths
+- **QoS Packet Scheduler**, **TCPIP** beállítások
+
+---
+
+### 5. GPO Jogosultságok / Delegation (Biztonság)
+
+**Security Filtering** (ki kapja meg a GPO-t):
+1. A GPO-ra kattintás → jobb oldalon **Scope** fül
+2. **Security Filtering**: alapból "Authenticated Users"
+3. Töröld ki, és adj hozzá konkrét csoportokat (pl. "Domain Users", "Budapest-Users")
+
+**Delegation (Ki szerkesztheti a GPO-t)**:
+1. GPO-ra kattintás → **Delegation** fül
+2. **Add** → add hozzá pl. "GPO-Editors" csoportot
+3. Jogosultság: **Edit settings** vagy **Edit settings, delete, modify security**
+
+**Haladó jogosultságok (Advanced)**:
+- **Read** + **Apply Group Policy** = a GPO érvényesül
+- **Edit settings** = szerkesztheti
+
+**Ajánlott best practice**:
+- Ne add meg a Domain Admins-nak Edit jogot minden GPO-ra.
+- Hozz létre külön **GPO Admins** vagy **GPO Editors** csoportot.
+
+---
+
+### 6. Fontos Eszközök a GPMC-ben
+
+- **Group Policy Modeling Wizard**: jobb klikk OU-ra → **Group Policy Modeling** (szimuláció)
+- **Group Policy Results**: jobb klikk egy gépre → **Group Policy Results** (mi érvényesül ténylegesen)
+- **RSOP.msc** (Resultant Set of Policy) helyi gépen
+
+**GPO Frissítés kényszerítése**:
+- `gpupdate /force` (parancssorból)
+- Vagy **Actions** → **Group Policy Update** (egész OU-ra)
+
+---
+
+### 7. Best Practices Windows Server 2022-höz
+
+1. **Ne módosítsd** a Default Domain Policy-t és Default Domain Controller Policy-t (kivéve password és audit).
+2. Hozz létre külön GPO-kat funkció szerint (pl. Security-Base, Desktop-Lockdown, Server-Hardening).
+3. Használj jó OU struktúrát (Users OU, Computers OU, Servers OU, Departments).
+4. Mindig tegyél **Comment**-et a GPO-ba.
+5. Használj **Security Filtering**-t ahelyett, hogy minden OU-ra linkelnél.
+6. **Loopback Processing**: Computer Configuration → Administrative Templates → System → Group Policy → **Configure user Group Policy loopback processing mode** (Merge vagy Replace) – szerverekhez nagyon hasznos.
+7. Rendszeresen ellenőrizd a **GPO Status**-t (Enabled/Disabled).
+8. Használj **WMI Filtering**-t speciális esetekhez.
+9. Backup: jobb klikk GPO-ra → **Back Up**
+
+---
+
+### 8. Gyakori Hibák és Tippek
+
+- GPO nem érvényesül? → Ellenőrizd: Security Filtering, Linkelés, Inheritance (Block Inheritance), Enforced.
+- Lassú bejelentkezés? → Túl sok GPO, logon script, vagy folder redirection.
+- ADMX sablonok: `%SystemRoot%\PolicyDefinitions` mappába tedd a legújabbakat (Central Store ajánlott).
+
+Szeretnéd, hogy egy konkrét területet még részletesebben kidolgozzak? Például:
+- Teljes Security Hardening GPO lista
+- Loopback Processing részletes példa
+- Desktop lockdown (Start menü, Taskbar, AppLocker)
+- Server specifikus GPO-k (RDS, Hyper-V, IIS)
+
+
+
+---
+
+### 1. GPO Linkelés – Részletesen (GUI)
+
+A **linkelés** azt jelenti, hogy egy meglévő GPO-t hozzárendelsz egy OU-hoz, Domain-hez vagy Site-hoz.
+
+**Linkelés lépései:**
+1. Nyisd meg a **Group Policy Management** konzolt (`gpmc.msc`)
+2. Navigálj az OU-hoz (pl. `Budapest-Users` OU)
+3. Az OU-ra **jobb klikk** → **Link an Existing GPO**
+4. Válaszd ki a kívánt GPO-t → **OK**
+
+**Fontos Linkelési Opciók:**
+
+| Opció                  | Leírás                                                                 | Mikor használd? |
+|------------------------|------------------------------------------------------------------------|-----------------|
+| **Enforced**           | A GPO felülírja az öröklődést és a blokkolást (erősen érvényesül)     | Biztonsági szabályoknál |
+| **Block Inheritance**  | Az OU letiltja a felette lévő GPO-k öröklődését                       | Speciális részlegeknél |
+| **Link Order**         | Alacsonyabb szám = erősebb (0 a legerősebb)                           | Ütköző beállításoknál |
+| **Disable**            | GPO letiltása (Computer / User konfiguráció külön is)                 | Teszteléshez |
+
+**Link kezelése:**
+- Link törlése: jobb klikk a linkre (az OU alatt) → **Delete** (csak a linket törli, a GPO marad)
+- Link mozgatása: Drag & Drop vagy jobb klikk → **Link Enabled** ki/be kapcsolása
+
+**Ajánlott gyakorlat**: Ne linkelj mindent a Domain gyökérre. Inkább OU-kra linkelj + Security Filtering-gel finomhangold.
+
+---
+
+### 2. Delegáció (Delegation) – Részletesen
+
+A delegációval meghatározhatod, hogy **ki szerkesztheti** vagy **ki alkalmazhatja** a GPO-t.
+
+#### A. Security Filtering (Ki kapja meg a GPO-t)
+
+1. Válaszd ki a GPO-t a bal oldalon
+2. Jobb oldalon menj a **Scope** fülre
+3. **Security Filtering** részben:
+   - Töröld az alapértelmezett **Authenticated Users** csoportot
+   - Kattints **Add** → add hozzá a kívánt biztonsági csoportot (pl. `Budapest-Users`, `IT-Staff`)
+   - Ennek a csoportnak kell legyen **Read** + **Apply Group Policy** jogosultsága
+
+**Magyarázat**: Csak azok a felhasználók/számítógépek kapják meg a GPO-t, akik ebben a csoportban vannak.
+
+#### B. Delegation (Ki szerkesztheti a GPO-t)
+
+1. Válaszd ki a GPO-t
+2. Menj a **Delegation** fülre
+3. Kattints **Add**
+4. Add hozzá a csoportot vagy felhasználót (pl. `GPO-Editors`)
+5. Válaszd ki a jogosultságot:
+
+| Jogosultság                          | Leírás |
+|--------------------------------------|------|
+| **Read**                             | Csak olvashatja |
+| **Edit settings**                    | Szerkesztheti a beállításokat |
+| **Edit settings, delete, modify security** | Teljes jog (ajánlott GPO adminoknak) |
+| **Read and Apply Group Policy**      | Alkalmazhatja (ritkán használatos) |
+
+**Haladó delegáció (Advanced):**
+1. Delegation fül → **Advanced** gomb
+2. Itt láthatod és finomhangolhatod az összes jogosultságot (pl. külön `Create All Child Objects` stb.)
+
+**Best Practice**:
+- Hozz létre egy **GPO Editors** nevű globális csoportot
+- Add ezt a csoportot a fontos GPO-k delegációjához
+- Domain Admins ne szerkesszen napi szinten GPO-kat
+
+---
+
+### 3. Háttérbeállítás (Wallpaper / Background) Felhasználóknak
+
+**User Configuration** alatt kell beállítani.
+
+**Lépések:**
+1. GPO szerkesztése → **User Configuration** → **Policies** → **Administrative Templates** → **Desktop** → **Desktop**
+2. Kattints duplán erre: **Desktop Wallpaper**
+
+**Beállítás:**
+- **Enabled**
+- **Wallpaper Name**: `\\fileserver\share\wallpaper\ceg_hatter.jpg` (UNC elérési út ajánlott)
+- **Wallpaper Style**:
+  - Fill
+  - Fit
+  - Stretch
+  - Tile
+  - Center
+
+**További ajánlott beállítások ugyanitt:**
+- **Prevent changing desktop background** → **Enabled** (ne tudják megváltoztatni)
+- **Desktop Wallpaper** → **Enabled**
+
+**Tipp**: A háttérkép fájlt tedd egy központi fájlmegosztásra, és adj Read jogot a Domain Users csoportnak.
+
+---
+
+### 4. Home Mappa (Home Folder) és Folder Redirection Felhasználóknak
+
+#### A. Home Folder beállítása (klasszikus módszer)
+
+1. Nyisd meg az **Active Directory Users and Computers** konzolt (`dsa.msc`)
+2. Menj a felhasználóhoz vagy OU-hoz → jobb klikk → **Properties**
+3. **Profile** fül
+4. **Home folder** rész:
+   - Jelöld be a **Connect** lehetőséget
+   - Válaszd ki a meghajtó betűt (pl. `H:`)
+   - Elérési út: `\\fileserver\users\%username%`
+
+**Tömeges beállítás PowerShell-lel** (kiegészítés):
+```powershell
+Get-ADUser -Filter * -SearchBase "OU=Users,DC=contoso,DC=com" | 
+Set-ADUser -HomeDrive "H:" -HomeDirectory "\\fileserver\users\$($_.SamAccountName)"
+```
+
+#### B. Folder Redirection (Ajánlott modernebb módszer)
+
+Ez a **legjobb gyakorlat** Windows Server 2022-ben.
+
+**Beállítás lépései:**
+1. GPO szerkesztése → **User Configuration** → **Policies** → **Windows Settings** → **Folder Redirection**
+2. Jobb klikk pl. a **Documents** mappára → **Properties**
+3. **Setting**: **Basic - Redirect everyone's folder to the same location**
+4. **Target folder location**:
+   - `\\fileserver\users\%USERNAME%\Documents`
+5. **Settings** fül:
+   - Grant the user exclusive rights → Enabled
+   - Move the contents of Documents to the new location → Enabled
+   - Also apply redirection policy to Windows 2000, XP... → Enabled (kompatibilitás)
+6. Ugyanezt megteheted **Desktop**, **Pictures**, **Downloads**, **Music** mappákra is.
+
+**Előnyök**:
+- A fájlok központilag mentve vannak (biztonsági mentés könnyebb)
+- A felhasználó bárhonnan ugyanazt látja (roaming profilnál is)
+- Offline Files támogatással működik
+
+---
+
+Szeretnéd, hogy még részletesebben kifejtsek valamit ezek közül? Például:
+- Teljes **Folder Redirection** GPO példa több mappával
+- **Roaming User Profile** beállítása
+- **Loopback Processing** + Home mappa kombináció
+- Biztonsági GPO delegáció matrix
+
+
