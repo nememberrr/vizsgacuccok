@@ -1,12 +1,13 @@
 Windows Server 2022 PowerShell
 
-Íme a jelentősen kibővített verzió. A **6. és 7. részt** különösen részletes magyarázatokkal láttam el, hogy ne csak a parancsokat lásd, hanem **miért, hogyan és mikor** használd őket.
+
 
 ---
 
 ### 6. Active Directory – Részletes Magyarázat
 
-Az **Active Directory PowerShell modul** (ActiveDirectory) lehetővé teszi a domain objektumok (felhasználók, csoportok, számítógépek, OU-k stb.) központi kezelését szkriptekkel. Ez sokkal hatékonyabb, mint a grafikus AD Users and Computers eszköz, különösen nagyobb környezetekben vagy ismétlődő feladatoknál.
+Az **Active Directory PowerShell modul** (ActiveDirectory) lehetővé teszi a domain objektumok 
+(felhasználók, csoportok, számítógépek, OU-k stb.) központi kezelését szkriptekkel. Ez sokkal hatékonyabb, mint a grafikus AD Users and Computers eszköz, különösen nagyobb környezetekben vagy ismétlődő feladatoknál.
 
 #### Modul telepítése és betöltése
 ```powershell
@@ -24,7 +25,8 @@ Get-ADDomain
 Get-ADForest
 Get-ADDomainController -Filter * | Select Hostname, Site, OperatingSystem, IPv4Address
 ```
-**Magyarázat**: Ezekkel a parancsokkal gyorsan átlátod a domain struktúrát, mely domain controllerek vannak, milyen site-okban, és milyen verziójúak. Hasznos hibakeresésnél és tervezésnél.
+**Magyarázat**: Ezekkel a parancsokkal gyorsan átlátod a domain struktúrát, mely domain controllerek vannak, 
+milyen site-okban, és milyen verziójúak. Hasznos hibakeresésnél és tervezésnél.
 
 #### Felhasználók kezelése (Users)
 ```powershell
@@ -56,7 +58,9 @@ New-ADUser -Name "Nagy Anna" `
            -EmailAddress "anagy@contoso.com" `
            -MobilePhone "+36301234567"
 ```
-**Magyarázat**: A `ConvertTo-SecureString` azért kell, mert a jelszót biztonságosan kell átadni. A `-Path` paraméterrel megadod, mely OU-ba kerüljön. A `-ChangePasswordAtLogon $true` kényszeríti az első bejelentkezéskor a jelszóváltást (biztonsági best practice).
+**Magyarázat**: A `ConvertTo-SecureString` azért kell, mert a jelszót biztonságosan kell átadni. 
+A `-Path` paraméterrel megadod, mely OU-ba kerüljön. A `-ChangePasswordAtLogon $true` kényszeríti 
+az első bejelentkezéskor a jelszóváltást (biztonsági best practice).
 
 **Tömeges felhasználó létrehozása CSV-ből** (nagyon hasznos!)
 ```powershell
@@ -100,7 +104,8 @@ A Windows Feature-ök és szerepkörök telepítése PowerShell-lel gyorsabb és
 Get-WindowsFeature | Where-Object InstallState -eq "Available" | Sort Name | Format-Table
 Install-WindowsFeature Web-Server,Web-Asp-Net45 -IncludeManagementTools -Restart
 ```
-**Magyarázat**: A `-IncludeManagementTools` nélkül csak a szolgáltatás települ, de a kezelőeszközök (konzolok) nem. A `-Restart` automatikusan újraindítja a szervert, ha szükséges.
+**Magyarázat**: A `-IncludeManagementTools` nélkül csak a szolgáltatás települ, de a kezelőeszközök (konzolok) nem. 
+A `-Restart` automatikusan újraindítja a szervert, ha szükséges.
 
 #### Hyper-V – Részletes
 ```powershell
@@ -119,7 +124,8 @@ New-VM -Name "Prod-SRV01" `
 # Erőforrás optimalizálás
 Set-VM -Name "Prod-SRV01" -ProcessorCount 6 -DynamicMemory:$true -MemoryMinimumBytes 4GB -MemoryMaximumBytes 16GB
 ```
-**Magyarázat**: A Dynamic Memory lehetővé teszi, hogy a VM csak annyi memóriát használjon, amennyire valóban szüksége van. Nagyon fontos erőforrás-hatékony környezetekben.
+**Magyarázat**: A Dynamic Memory lehetővé teszi, hogy a VM csak annyi memóriát használjon, amennyire valóban szüksége van. 
+Nagyon fontos erőforrás-hatékony környezetekben.
 
 #### IIS (Web Server) – Részletes
 ```powershell
@@ -140,7 +146,8 @@ Set-ItemProperty IIS:\AppPools\CegWebPool enable32BitAppOnWin64 $false
 # Alkalmazás (Application) létrehozása
 New-WebApplication -Name "api" -Site "CegWeb" -PhysicalPath "C:\inetpub\wwwroot\CegWeb\api" -ApplicationPool "CegWebPool"
 ```
-**Magyarázat**: Az Application Pool különválasztja az alkalmazásokat, így ha egy lefagy, nem viszi magával a többit. Ajánlott minden weboldalnak saját pool-t adni.
+**Magyarázat**: Az Application Pool különválasztja az alkalmazásokat, így ha egy lefagy, nem viszi magával a többit. 
+Ajánlott minden weboldalnak saját pool-t adni.
 
 ---
 
@@ -180,7 +187,8 @@ Mondd meg, melyik részt dolgozzuk ki még részletesebben!
 
 **Windows Server 2022 PowerShell Cheat Sheet**
 
-Windows Server 2022-ben alapból **PowerShell 5.1** van telepítve (Windows PowerShell). Ajánlott a **PowerShell 7+** telepítése a jobb teljesítmény és kompatibilitás miatt, de sok szerver-szerepkör (AD, Hyper-V, IIS) még a 5.1-es modulokra épül.
+Windows Server 2022-ben alapból **PowerShell 5.1** van telepítve (Windows PowerShell). Ajánlott a **PowerShell 7+** telepítése a jobb teljesítmény és kompatibilitás miatt, 
+de sok szerver-szerepkör (AD, Hyper-V, IIS) még a 5.1-es modulokra épül.
 
 ### 1. Alapok & Segítség
 - `Get-Command` vagy `Get-Command -Module ActiveDirectory` — Összes parancs / modul parancsai
